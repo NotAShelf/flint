@@ -21,7 +21,6 @@ type Options struct {
 	OutputFormat           string
 }
 
-// flakeURL constructs a dependency URL from a node definition
 func flakeURL(dep map[string]interface{}) string {
 	locked, ok := dep["locked"].(map[string]interface{})
 	if !ok {
@@ -46,7 +45,6 @@ func flakeURL(dep map[string]interface{}) string {
 	return ""
 }
 
-// analyzeFlake processes the flake.lock data to extract dependencies and their reverse dependencies
 func analyzeFlake(flakeLock map[string]interface{}) Flake {
 	deps := make(map[string][]string)
 	reverseDeps := make(map[string][]string)
@@ -76,14 +74,13 @@ func analyzeFlake(flakeLock map[string]interface{}) Flake {
 	return Flake{Deps: deps, ReverseDeps: reverseDeps}
 }
 
-// parseArgs parses command-line arguments into an Options struct
 func parseArgs() Options {
 	var lockPath string
 	var verbose bool
 	var failIfMultipleVersions bool
 	var outputFormat string
 
-	flag.StringVar(&lockPath, "flake-lock", "flake.lock", "path to flake.lock")
+	flag.StringVar(&lockPath, "lockfile", "flake.lock", "path to flake.lock")
 	flag.BoolVar(&verbose, "verbose", false, "enable verbose output")
 	flag.BoolVar(&failIfMultipleVersions, "fail-if-multiple-versions", false, "exit with error if multiple versions found")
 	flag.StringVar(&outputFormat, "output", "plain", "output format: plain or json")
@@ -93,8 +90,8 @@ func parseArgs() Options {
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  %s --flake-lock=/path/to/flake.lock --verbose\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s --flake-lock=/path/to/flake.lock --output=json\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --lockfile=/path/to/flake.lock --verbose\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --lockfile=/path/to/flake.lock --output=json\n", os.Args[0])
 	}
 
 	flag.Parse()
@@ -107,7 +104,6 @@ func parseArgs() Options {
 	}
 }
 
-// printDependencies outputs dependencies with multiple versions and their reverse dependencies
 func printDependencies(deps map[string][]string, reverseDeps map[string][]string, options Options) {
 	if options.OutputFormat == "json" {
 		output := map[string]interface{}{
@@ -139,7 +135,7 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 	depStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("2"))
 
-		// Inputs that depend on an input
+	// Inputs that depend on an input
 	summaryStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("3")).
 		Bold(true)
