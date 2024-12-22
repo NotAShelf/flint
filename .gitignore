@@ -1,0 +1,5 @@
+# ignore compiled binary
+flint
+
+# Nix
+result*
