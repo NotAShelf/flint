@@ -5,7 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strings"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 type Flake struct {
@@ -94,36 +95,63 @@ func parseArgs() Options {
 
 // printDependencies outputs dependencies with multiple versions and their reverse dependencies
 func printDependencies(deps map[string][]string, reverseDeps map[string][]string, verbose bool) {
-	hasMultipleVersions := false
+	// Titles, bold and underlined.
+	titleStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("5")).
+		Bold(true).
+		Underline(true)
 
+	// Repository name
+	repoStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("6")).
+		Bold(true)
+
+		// Aliases to an input
+	aliasStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("4")).
+		Italic(true)
+
+		// Inputs that depend on an input
+	depStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("2"))
+
+		// Summary line at the end
+	summaryStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("3")).
+		Bold(true)
+
+	hasMultipleVersions := false
+	fmt.Println(titleStyle.Render("Dependency Analysis Report"))
+
+	// iterate through dependencies
 	for url, aliases := range deps {
 		if len(aliases) == 1 {
 			continue // skip single-version dependencies
 		}
 
-		// Print repository information
-		fmt.Printf("%s\n", url)
-		fmt.Println(strings.Repeat("=", len(url)))
+		// repository header
+		fmt.Println(repoStyle.Render(fmt.Sprintf("Repository: %s", url)))
 
-		// List aliases and their reverse dependencies
-		hasMultipleVersions = true
-
+		// aliases and their reverse dependencies
 		for _, alias := range aliases {
-			fmt.Printf("%s:\n", alias)
+			fmt.Println(aliasStyle.Render(fmt.Sprintf("  Alias: %s", alias)))
+			fmt.Println(depStyle.Render("    Dependants:"))
 			for _, dep := range reverseDeps[alias] {
-				fmt.Printf("    - %s\n", dep)
+				fmt.Println(depStyle.Render(fmt.Sprintf("      - %s", dep)))
 			}
-
 			if verbose {
-				fmt.Printf("Verbose info: %s has %d dependencies\n", alias, len(reverseDeps[alias]))
+				fmt.Println(depStyle.Render(fmt.Sprintf("    [Verbose Info] %s has %d dependencies", alias, len(reverseDeps[alias]))))
 			}
+			fmt.Println()
 		}
+
+		hasMultipleVersions = true
 	}
 
 	if hasMultipleVersions {
-		fmt.Println("Multiple versions found across repositories.")
-	} else if verbose {
-		fmt.Println("No multiple versions detected.")
+		fmt.Println(summaryStyle.Render("Duplicate inputs detected. Please review above output."))
+	} else {
+		fmt.Println(summaryStyle.Render("No duplicate inputs detected in the repositories analyzed."))
 	}
 }
 
