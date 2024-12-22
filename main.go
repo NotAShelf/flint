@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -121,8 +122,8 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 		Bold(true).
 		Underline(true)
 
-	// Repository name
-	repoStyle := lipgloss.NewStyle().
+	// Input name
+	inputStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("6")).
 		Bold(true)
 
@@ -148,18 +149,22 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 			continue // skip single-version dependencies
 		}
 
-		fmt.Println(repoStyle.Render(fmt.Sprintf("Repository: %s", url)))
+		fmt.Println(inputStyle.Render(fmt.Sprintf("- Input: %s", url)))
 		for _, alias := range aliases {
 			fmt.Println(aliasStyle.Render(fmt.Sprintf("  Alias: %s", alias)))
-			fmt.Println(depStyle.Render("    Dependants:"))
-			for _, dep := range reverseDeps[alias] {
-				fmt.Println(depStyle.Render(fmt.Sprintf("      - %s", dep)))
+			fmt.Print(depStyle.Render("    Dependants: "))
+
+			dependants := reverseDeps[alias]
+			if len(dependants) > 0 {
+				fmt.Print(strings.Join(dependants, ", "))
 			}
+
 			if options.Verbose {
-				fmt.Println(depStyle.Render(fmt.Sprintf("    [Debug] %d inputs depend on %s", len(reverseDeps[alias]), alias)))
+				fmt.Println(depStyle.Render(fmt.Sprintf("    [Debug] %d inputs depend on %s", len(dependants), alias)))
 			}
 			fmt.Println()
 		}
+
 		hasMultipleVersions = true
 	}
 
