@@ -22,28 +22,64 @@ type Options struct {
 	OutputFormat           string
 }
 
+type Repository struct {
+	Type  string
+	Owner string
+	Repo  string
+	Host  string
+	URL   string
+	Path  string
+}
+
+// Safely retrieves a string value from a map, returning an empty string
+// if the value doesn't exist or isn't a string.
+func safeGetString(m map[string]interface{}, key string) string {
+	if value, ok := m[key]; ok {
+		if str, ok := value.(string); ok {
+			return str
+		}
+	}
+	return ""
+}
+
 func flakeURL(dep map[string]interface{}) string {
 	locked, ok := dep["locked"].(map[string]interface{})
 	if !ok {
 		return ""
 	}
-	lockedType, ok := locked["type"].(string)
-	if !ok {
-		return ""
+
+	repo := Repository{
+		Type:  safeGetString(locked, "type"),
+		Owner: safeGetString(locked, "owner"),
+		Repo:  safeGetString(locked, "repo"),
 	}
-	switch lockedType {
+
+	repo.Host = safeGetString(locked, "host")
+	repo.URL = safeGetString(locked, "url")
+	repo.Path = safeGetString(locked, "path")
+
+	return generateRepoURL(repo)
+}
+
+func generateRepoURL(repo Repository) string {
+	switch repo.Type {
+
 	case "github", "gitlab", "sourcehut":
-		url := fmt.Sprintf("%s:%s/%s", lockedType, locked["owner"], locked["repo"])
-		if host, ok := locked["host"].(string); ok {
-			url += fmt.Sprintf("?host=%s", host)
+		url := fmt.Sprintf("%s:%s/%s", repo.Type, repo.Owner, repo.Repo)
+		if repo.Host != "" {
+			url += fmt.Sprintf("?host=%s", repo.Host)
 		}
 		return url
+
 	case "git", "hg", "tarball":
-		return fmt.Sprintf("%s:%s", lockedType, locked["url"])
+		return fmt.Sprintf("%s:%s", repo.Type, repo.URL)
+
 	case "path":
-		return fmt.Sprintf("%s:%s", lockedType, locked["path"])
+		return fmt.Sprintf("%s:%s", repo.Type, repo.Path)
+
+	default:
+		return ""
 	}
-	return ""
 }
 
 func analyzeFlake(flakeLock map[string]interface{}) Flake {
@@ -67,11 +103,13 @@ func analyzeFlake(flakeLock map[string]interface{}) Flake {
 				}
 			}
 		}
+
 		url := flakeURL(dep)
 		if url != "" {
 			deps[url] = append(deps[url], name)
 		}
 	}
+
 	return Flake{Deps: deps, ReverseDeps: reverseDeps}
 }
 
@@ -148,8 +186,7 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 		if len(aliases) == 1 {
 			continue // skip single-version dependencies
 		}
-
-		fmt.Println(inputStyle.Render(fmt.Sprintf("- Input: %s", url)))
+		fmt.Println(inputStyle.Render(fmt.Sprintf("Input: %s", url)))
 		for _, alias := range aliases {
 			fmt.Println(aliasStyle.Render(fmt.Sprintf("  Alias: %s", alias)))
 			fmt.Print(depStyle.Render("    Dependants: "))
