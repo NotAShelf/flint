@@ -2,148 +2,16 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	args "notashelf.dev/flint/internal/args"
+	flake "notashelf.dev/flint/internal/flake"
 )
 
-type Flake struct {
-	Deps        map[string][]string
-	ReverseDeps map[string][]string
-}
-
-type Options struct {
-	LockPath               string
-	Verbose                bool
-	FailIfMultipleVersions bool
-	OutputFormat           string
-}
-
-type Repository struct {
-	Type  string
-	Owner string
-	Repo  string
-	Host  string
-	URL   string
-	Path  string
-}
-
-// Safely retrieves a string value from a map, returning an empty string
-// if the value doesn't exist or isn't a string.
-func safeGetString(m map[string]interface{}, key string) string {
-	if value, ok := m[key]; ok {
-		if str, ok := value.(string); ok {
-			return str
-		}
-	}
-	return ""
-}
-
-func flakeURL(dep map[string]interface{}) string {
-	locked, ok := dep["locked"].(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	repo := Repository{
-		Type:  safeGetString(locked, "type"),
-		Owner: safeGetString(locked, "owner"),
-		Repo:  safeGetString(locked, "repo"),
-	}
-
-	repo.Host = safeGetString(locked, "host")
-	repo.URL = safeGetString(locked, "url")
-	repo.Path = safeGetString(locked, "path")
-
-	return generateRepoURL(repo)
-}
-
-func generateRepoURL(repo Repository) string {
-	switch repo.Type {
-
-	case "github", "gitlab", "sourcehut":
-		url := fmt.Sprintf("%s:%s/%s", repo.Type, repo.Owner, repo.Repo)
-		if repo.Host != "" {
-			url += fmt.Sprintf("?host=%s", repo.Host)
-		}
-		return url
-
-	case "git", "hg", "tarball":
-		return fmt.Sprintf("%s:%s", repo.Type, repo.URL)
-
-	case "path":
-		return fmt.Sprintf("%s:%s", repo.Type, repo.Path)
-
-	default:
-		return ""
-	}
-}
-
-func analyzeFlake(flakeLock map[string]interface{}) Flake {
-	deps := make(map[string][]string)
-	reverseDeps := make(map[string][]string)
-
-	nodes, _ := flakeLock["nodes"].(map[string]interface{})
-	for name, depInterface := range nodes {
-		dep, _ := depInterface.(map[string]interface{})
-		if inputs, ok := dep["inputs"].(map[string]interface{}); ok {
-			for _, input := range inputs {
-				switch v := input.(type) {
-				case string:
-					reverseDeps[v] = append(reverseDeps[v], name)
-				case []interface{}:
-					for _, i := range v {
-						if str, ok := i.(string); ok {
-							reverseDeps[str] = append(reverseDeps[str], name)
-						}
-					}
-				}
-			}
-		}
-
-		url := flakeURL(dep)
-		if url != "" {
-			deps[url] = append(deps[url], name)
-		}
-	}
-
-	return Flake{Deps: deps, ReverseDeps: reverseDeps}
-}
-
-func parseArgs() Options {
-	var lockPath string
-	var verbose bool
-	var failIfMultipleVersions bool
-	var outputFormat string
-
-	flag.StringVar(&lockPath, "lockfile", "flake.lock", "path to flake.lock")
-	flag.BoolVar(&verbose, "verbose", false, "enable verbose output")
-	flag.BoolVar(&failIfMultipleVersions, "fail-if-multiple-versions", false, "exit with error if multiple versions found")
-	flag.StringVar(&outputFormat, "output", "plain", "output format: plain or json")
-
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "Options:\n")
-		flag.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  %s --lockfile=/path/to/flake.lock --verbose\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  %s --lockfile=/path/to/flake.lock --output=json\n", os.Args[0])
-	}
-
-	flag.Parse()
-
-	return Options{
-		LockPath:               lockPath,
-		Verbose:                verbose,
-		FailIfMultipleVersions: failIfMultipleVersions,
-		OutputFormat:           outputFormat,
-	}
-}
-
-func printDependencies(deps map[string][]string, reverseDeps map[string][]string, options Options) {
+func printDependencies(deps map[string][]string, reverseDeps map[string][]string, options args.Options) {
 	if options.OutputFormat == "json" {
 		output := map[string]interface{}{
 			"dependencies":         deps,
@@ -213,7 +81,7 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 }
 
 func main() {
-	options := parseArgs()
+	options := args.ParseArgs()
 
 	data, err := os.ReadFile(options.LockPath)
 	if err != nil {
@@ -227,7 +95,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	flake := analyzeFlake(flakeLock)
+	flake := flake.AnalyzeFlake(flakeLock)
 
 	// Print the dependencies
 	printDependencies(flake.Deps, flake.ReverseDeps, options)
