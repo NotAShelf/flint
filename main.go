@@ -18,6 +18,7 @@ type Options struct {
 	LockPath               string
 	Verbose                bool
 	FailIfMultipleVersions bool
+	OutputFormat           string
 }
 
 // flakeURL constructs a dependency URL from a node definition
@@ -80,21 +81,44 @@ func parseArgs() Options {
 	var lockPath string
 	var verbose bool
 	var failIfMultipleVersions bool
+	var outputFormat string
 
-	flag.StringVar(&lockPath, "flake_lock", "flake.lock", "Path to flake.lock")
-	flag.BoolVar(&verbose, "verbose", false, "Enable verbose output")
-	flag.BoolVar(&failIfMultipleVersions, "fail-if-multiple-versions", false, "Exit with error if multiple versions found")
+	flag.StringVar(&lockPath, "flake-lock", "flake.lock", "path to flake.lock")
+	flag.BoolVar(&verbose, "verbose", false, "enable verbose output")
+	flag.BoolVar(&failIfMultipleVersions, "fail-if-multiple-versions", false, "exit with error if multiple versions found")
+	flag.StringVar(&outputFormat, "output", "plain", "output format: plain or json")
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Options:\n")
+		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, "\nExamples:\n")
+		fmt.Fprintf(os.Stderr, "  %s --flake-lock=/path/to/flake.lock --verbose\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --flake-lock=/path/to/flake.lock --output=json\n", os.Args[0])
+	}
+
 	flag.Parse()
 
 	return Options{
 		LockPath:               lockPath,
 		Verbose:                verbose,
 		FailIfMultipleVersions: failIfMultipleVersions,
+		OutputFormat:           outputFormat,
 	}
 }
 
 // printDependencies outputs dependencies with multiple versions and their reverse dependencies
-func printDependencies(deps map[string][]string, reverseDeps map[string][]string, verbose bool) {
+func printDependencies(deps map[string][]string, reverseDeps map[string][]string, options Options) {
+	if options.OutputFormat == "json" {
+		output := map[string]interface{}{
+			"dependencies":         deps,
+			"reverse_dependencies": reverseDeps,
+		}
+		jsonData, _ := json.MarshalIndent(output, "", "  ")
+		fmt.Println(string(jsonData))
+		return
+	}
+
 	// Titles, bold and underlined.
 	titleStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("5")).
@@ -106,16 +130,16 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 		Foreground(lipgloss.Color("6")).
 		Bold(true)
 
-		// Aliases to an input
+	// Aliases to an input
 	aliasStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("4")).
 		Italic(true)
 
-		// Inputs that depend on an input
+	// Inputs that depend on a given input
 	depStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("2"))
 
-		// Summary line at the end
+		// Inputs that depend on an input
 	summaryStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("3")).
 		Bold(true)
@@ -123,28 +147,23 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 	hasMultipleVersions := false
 	fmt.Println(titleStyle.Render("Dependency Analysis Report"))
 
-	// iterate through dependencies
 	for url, aliases := range deps {
 		if len(aliases) == 1 {
 			continue // skip single-version dependencies
 		}
 
-		// repository header
 		fmt.Println(repoStyle.Render(fmt.Sprintf("Repository: %s", url)))
-
-		// aliases and their reverse dependencies
 		for _, alias := range aliases {
 			fmt.Println(aliasStyle.Render(fmt.Sprintf("  Alias: %s", alias)))
 			fmt.Println(depStyle.Render("    Dependants:"))
 			for _, dep := range reverseDeps[alias] {
 				fmt.Println(depStyle.Render(fmt.Sprintf("      - %s", dep)))
 			}
-			if verbose {
-				fmt.Println(depStyle.Render(fmt.Sprintf("    [Verbose Info] %s has %d dependencies", alias, len(reverseDeps[alias]))))
+			if options.Verbose {
+				fmt.Println(depStyle.Render(fmt.Sprintf("    [Debug] %d inputs depend on %s", len(reverseDeps[alias]), alias)))
 			}
 			fmt.Println()
 		}
-
 		hasMultipleVersions = true
 	}
 
@@ -158,7 +177,6 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 func main() {
 	options := parseArgs()
 
-	// Read the flake.lock file
 	data, err := os.ReadFile(options.LockPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading flake.lock: %v\n", err)
@@ -174,7 +192,7 @@ func main() {
 	flake := analyzeFlake(flakeLock)
 
 	// Print the dependencies
-	printDependencies(flake.Deps, flake.ReverseDeps, options.Verbose)
+	printDependencies(flake.Deps, flake.ReverseDeps, options)
 
 	// Exit with an error if multiple versions were found and the flag is set
 	if options.FailIfMultipleVersions && len(flake.Deps) > 0 {
