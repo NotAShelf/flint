@@ -114,7 +114,14 @@ Dependency Analysis Report
 No duplicate inputs detected in the repositories analyzed.
 ```
 
-![xckd](https://imgs.xkcd.com/comics/manuals.png)
+<p align="center">
+  <img src="https://imgs.xkcd.com/comics/manuals.png" alt="Mandatory xkcd comic">
+</p>
+
+## Hacking
+
+Clone the repository and run `nix develop`. A `.envrc` is provided for Direnv
+users.
 
 ## License
 
