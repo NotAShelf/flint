@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	args "notashelf.dev/flint/internal/args"
 	flake "notashelf.dev/flint/internal/flake"
+	util "notashelf.dev/flint/internal/util"
 )
 
 func printDependencies(deps map[string][]string, reverseDeps map[string][]string, options args.Options) {
@@ -28,7 +29,7 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 		Bold(true).
 		Underline(true)
 
-	// Input name
+	// Name of the input from a flake's root
 	inputStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("6")).
 		Bold(true)
@@ -42,10 +43,20 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 	depStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("2"))
 
-	// Inputs that depend on an input
+	// Summary at the end
 	summaryStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("3")).
 		Bold(true)
+
+	// skip color if NO_COLOR is set
+	noColor := util.IsNoColor()
+	if noColor {
+		titleStyle = lipgloss.NewStyle()
+		inputStyle = lipgloss.NewStyle()
+		aliasStyle = lipgloss.NewStyle()
+		depStyle = lipgloss.NewStyle()
+		summaryStyle = lipgloss.NewStyle()
+	}
 
 	hasMultipleVersions := false
 	fmt.Println(titleStyle.Render("Dependency Analysis Report"))
