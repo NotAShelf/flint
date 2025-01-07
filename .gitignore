@@ -3,3 +3,6 @@ flint
 
 # Nix
 result*
+
+# direnv
+.direnv/
