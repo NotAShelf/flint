@@ -62,23 +62,43 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 	fmt.Println(titleStyle.Render("Dependency Analysis Report"))
 
 	for url, aliases := range deps {
-		if len(aliases) == 1 {
-			continue // skip single-version dependencies
-		}
-		fmt.Println(inputStyle.Render(fmt.Sprintf("Input: %s", url)))
+		dependantsSet := make(map[string]struct{})
 		for _, alias := range aliases {
-			fmt.Println(aliasStyle.Render(fmt.Sprintf("  Alias: %s", alias)))
-			fmt.Print(depStyle.Render("    Dependants: "))
+			for _, dependant := range reverseDeps[alias] {
+				dependantsSet[dependant] = struct{}{}
+			}
+		}
 
-			dependants := reverseDeps[alias]
-			if len(dependants) > 0 {
-				fmt.Print(strings.Join(dependants, ", "))
+		if options.Merge {
+			if len(aliases) <= 1 {
+				continue
+			}
+			fmt.Println(inputStyle.Render(fmt.Sprintf("Input: %s", url)))
+			if len(dependantsSet) > 0 {
+				dependants := make([]string, 0, len(dependantsSet))
+				for dependant := range dependantsSet {
+					dependants = append(dependants, dependant)
+				}
+				fmt.Println(depStyle.Render(fmt.Sprintf("  Dependants: %s", strings.Join(dependants, ", "))))
+			}
+		} else {
+			if len(aliases) == 1 {
+				continue
 			}
 
-			if options.Verbose {
-				fmt.Println(depStyle.Render(fmt.Sprintf("    [Debug] %d inputs depend on %s", len(dependants), alias)))
+			fmt.Println(inputStyle.Render(fmt.Sprintf("Input: %s", url)))
+			for _, alias := range aliases {
+				fmt.Println(aliasStyle.Render(fmt.Sprintf("  Alias: %s", alias)))
+				fmt.Print(depStyle.Render("    Dependants: "))
+				dependants := reverseDeps[alias]
+				if len(dependants) > 0 {
+					fmt.Print(strings.Join(dependants, ", "))
+				}
+				if options.Verbose {
+					fmt.Println(depStyle.Render(fmt.Sprintf("    [Debug] %d inputs depend on %s", len(dependants), alias)))
+				}
+				fmt.Println()
 			}
-			fmt.Println()
 		}
 
 		hasMultipleVersions = true
