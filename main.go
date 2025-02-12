@@ -132,7 +132,11 @@ func main() {
 	printDependencies(flake.Deps, flake.ReverseDeps, options)
 
 	// Exit with an error if multiple versions were found and the flag is set
-	if options.FailIfMultipleVersions && len(flake.Deps) > 0 {
-		os.Exit(1)
+	if options.FailIfMultipleVersions {
+        for _, aliases := range flake.Deps {
+            if len(aliases) > 1 {
+                os.Exit(1)
+            }
+        }
 	}
 }
