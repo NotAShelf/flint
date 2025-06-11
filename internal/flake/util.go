@@ -6,7 +6,7 @@ import (
 
 // Safely retrieves a string value from a map, returning an empty string
 // if the value doesn't exist or isn't a string.
-func safeGetString(m map[string]interface{}, key string) string {
+func safeGetString(m map[string]any, key string) string {
 	if value, ok := m[key]; ok {
 		if str, ok := value.(string); ok {
 			return str
@@ -15,8 +15,8 @@ func safeGetString(m map[string]interface{}, key string) string {
 	return ""
 }
 
-func flakeURL(dep map[string]interface{}) string {
-	locked, ok := dep["locked"].(map[string]interface{})
+func flakeURL(dep map[string]any) string {
+	locked, ok := dep["locked"].(map[string]any)
 	if !ok {
 		return ""
 	}
@@ -55,19 +55,19 @@ func generateRepoURL(repo Input) string {
 	}
 }
 
-func AnalyzeFlake(flakeLock map[string]interface{}) Relations {
+func AnalyzeFlake(flakeLock map[string]any) Relations {
 	deps := make(map[string][]string)
 	reverseDeps := make(map[string][]string)
 
-	nodes, _ := flakeLock["nodes"].(map[string]interface{})
+	nodes, _ := flakeLock["nodes"].(map[string]any)
 	for name, depInterface := range nodes {
-		dep, _ := depInterface.(map[string]interface{})
-		if inputs, ok := dep["inputs"].(map[string]interface{}); ok {
+		dep, _ := depInterface.(map[string]any)
+		if inputs, ok := dep["inputs"].(map[string]any); ok {
 			for _, input := range inputs {
 				switch v := input.(type) {
 				case string:
 					reverseDeps[v] = append(reverseDeps[v], name)
-				case []interface{}:
+				case []any:
 					for _, i := range v {
 						if str, ok := i.(string); ok {
 							reverseDeps[str] = append(reverseDeps[str], name)
