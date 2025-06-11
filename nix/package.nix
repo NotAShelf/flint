@@ -1,26 +1,34 @@
 {
-  self,
   lib,
   buildGoModule,
   ...
-}:
-buildGoModule {
-  pname = "flint";
-  version = "0.1.0";
+}: let
+  fs = lib.fileset;
+  version = "0.2.0";
+in
+  buildGoModule {
+    pname = "flint";
+    inherit version;
 
-  src = builtins.path {
-    path = self;
-    name = "flint-src";
-  };
+    src = fs.toSource {
+      root = ../.;
+      fileset = fs.unions [
+        ../cmd
+        ../internal
+        ../vendor
+        ../go.mod
+        ../go.sum
+      ];
+    };
 
-  vendorHash = "sha256-HVynSqH/6GnPutzEsASWAMd7H1veE1ps+MpADKKJEmU=";
+    vendorHash = null;
 
-  ldflags = ["-s" "-w"];
+    ldflags = ["-s" "-w" "-X main.version=${version}"];
 
-  meta = {
-    description = "Stupid simple utility for linting your flake inputs";
-    license = lib.licenses.mpl20;
-    mainProgram = "flint";
-    maintainers = [lib.maintainers.NotAShelf];
-  };
-}
+    meta = {
+      description = "Stupid simple utility for linting your flake inputs";
+      license = lib.licenses.mpl20;
+      mainProgram = "flint";
+      maintainers = [lib.maintainers.NotAShelf];
+    };
+  }
