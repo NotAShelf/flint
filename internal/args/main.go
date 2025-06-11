@@ -24,7 +24,7 @@ func ParseArgs() Options {
 	flag.StringVar(&lockPath, "lockfile", "flake.lock", "path to flake.lock")
 	flag.BoolVar(&verbose, "verbose", false, "enable verbose output")
 	flag.BoolVar(&failIfMultipleVersions, "fail-if-multiple-versions", false, "exit with error if multiple versions found")
-	flag.StringVar(&outputFormat, "output", "plain", "output format: plain or json")
+	flag.StringVar(&outputFormat, "output", "pretty", "output format: plain, pretty, or json")
 	flag.BoolVar(&merge, "merge", false, "merge all dependants into one list for each input")
 
 	flag.Usage = func() {
@@ -34,6 +34,7 @@ func ParseArgs() Options {
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
 		fmt.Fprintf(os.Stderr, "  %s --lockfile=/path/to/flake.lock --verbose\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s --lockfile=/path/to/flake.lock --output=json\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s --lockfile=/path/to/flake.lock --output=plain\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "  %s --merge\n", os.Args[0])
 	}
 
