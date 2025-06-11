@@ -18,7 +18,11 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 			"dependencies":         deps,
 			"reverse_dependencies": reverseDeps,
 		}
-		jsonData, _ := json.MarshalIndent(output, "", "  ")
+		jsonData, err := json.MarshalIndent(output, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error marshaling JSON output: %v\n", err)
+			os.Exit(1)
+		}
 		fmt.Println(string(jsonData))
 		return
 	}
@@ -133,10 +137,10 @@ func main() {
 
 	// Exit with an error if multiple versions were found and the flag is set
 	if options.FailIfMultipleVersions {
-        for _, aliases := range flake.Deps {
-            if len(aliases) > 1 {
-                os.Exit(1)
-            }
-        }
+		for _, aliases := range flake.Deps {
+			if len(aliases) > 1 {
+				os.Exit(1)
+			}
+		}
 	}
 }
