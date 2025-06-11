@@ -27,57 +27,62 @@ func printDependencies(deps map[string][]string, reverseDeps map[string][]string
 		return
 	}
 
-	// Titles, bold and underlined.
-	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("5")).
-		Bold(true).
-		Underline(true)
+	// Create styles once
+	var titleStyle, inputStyle, aliasStyle, depStyle, summaryStyle lipgloss.Style
 
-	// Name of the input from a flake's root
-	inputStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("6")).
-		Bold(true)
+	if util.IsNoColor() {
+		// Reuse a single empty style
+		emptyStyle := lipgloss.NewStyle()
+		titleStyle = emptyStyle
+		inputStyle = emptyStyle
+		aliasStyle = emptyStyle
+		depStyle = emptyStyle
+		summaryStyle = emptyStyle
+	} else {
+		// Titles, bold and underlined.
+		titleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("5")).
+			Bold(true).
+			Underline(true)
 
-	// Aliases to an input
-	aliasStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("4")).
-		Italic(true)
+		// Name of the input from a flake's root
+		inputStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("6")).
+			Bold(true)
 
-	// Inputs that depend on a given input
-	depStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("2"))
+		// Aliases to an input
+		aliasStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("4")).
+			Italic(true)
 
-	// Summary at the end
-	summaryStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("3")).
-		Bold(true)
+		// Inputs that depend on a given input
+		depStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("2"))
 
-	// skip color if NO_COLOR is set
-	noColor := util.IsNoColor()
-	if noColor {
-		titleStyle = lipgloss.NewStyle()
-		inputStyle = lipgloss.NewStyle()
-		aliasStyle = lipgloss.NewStyle()
-		depStyle = lipgloss.NewStyle()
-		summaryStyle = lipgloss.NewStyle()
+		// Summary at the end
+		summaryStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("3")).
+			Bold(true)
 	}
 
 	hasMultipleVersions := false
 	fmt.Println(titleStyle.Render("Dependency Analysis Report"))
 
 	for url, aliases := range deps {
-		dependantsSet := make(map[string]struct{})
-		for _, alias := range aliases {
-			for _, dependant := range reverseDeps[alias] {
-				dependantsSet[dependant] = struct{}{}
-			}
-		}
-
 		if options.Merge {
 			if len(aliases) <= 1 {
 				continue
 			}
 			fmt.Println(inputStyle.Render(fmt.Sprintf("Input: %s", url)))
+
+			// Only build the set when actually needed in merge mode
+			dependantsSet := make(map[string]struct{})
+			for _, alias := range aliases {
+				for _, dependant := range reverseDeps[alias] {
+					dependantsSet[dependant] = struct{}{}
+				}
+			}
+
 			if len(dependantsSet) > 0 {
 				dependants := make([]string, 0, len(dependantsSet))
 				for dependant := range dependantsSet {
