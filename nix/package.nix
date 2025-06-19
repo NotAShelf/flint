@@ -16,6 +16,7 @@ in
         ../cmd
         ../internal
         ../vendor
+        ../main.go
         ../go.mod
         ../go.sum
       ];
@@ -27,6 +28,7 @@ in
 
     meta = {
       description = "Stupid simple utility for linting your flake inputs";
+      homepage = "https://github.com/notashelf/flint";
       license = lib.licenses.mpl20;
       mainProgram = "flint";
       maintainers = [lib.maintainers.NotAShelf];
