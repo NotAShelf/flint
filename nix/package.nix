@@ -4,7 +4,7 @@
   ...
 }: let
   fs = lib.fileset;
-  version = "0.2.0";
+  version = "0.3.0";
 in
   buildGoModule {
     pname = "flint";
