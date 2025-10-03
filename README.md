@@ -29,6 +29,7 @@ Examples:
   flint --lockfile=/path/to/flake.lock --output=json
   flint --lockfile=/path/to/flake.lock --output=plain
   flint --merge
+  flint --quiet
 
 Flags:
       --fail-if-multiple-versions   exit with error if multiple versions found
@@ -36,6 +37,7 @@ Flags:
   -l, --lockfile string             path to flake.lock (default "flake.lock")
   -m, --merge                       merge all dependants into one list for each input
   -o, --output string               output format: plain, pretty, or json (default "pretty")
+  -q, --quiet                       suppress all non-error output
   -v, --verbose                     enable verbose output
 ```
 
