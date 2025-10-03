@@ -65,7 +65,10 @@ func runFlint() error {
 	}
 
 	// Print the dependencies
-	output.PrintDependencies(flakeData.Deps, flakeData.ReverseDeps, options)
+	if err := output.PrintDependencies(flakeData.Deps, flakeData.ReverseDeps, options); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Return an error if multiple versions were found and the flag is set
 	if failIfMultipleVersions {

@@ -3,7 +3,6 @@ package output
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -17,7 +16,7 @@ type Options struct {
 	FailIfMultipleVersions bool
 }
 
-func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string, options Options) {
+func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string, options Options) error {
 	if options.OutputFormat == "json" {
 		output := map[string]any{
 			"dependencies":         deps,
@@ -25,11 +24,10 @@ func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string
 		}
 		jsonData, err := json.MarshalIndent(output, "", "  ")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error marshaling JSON output: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("error marshaling JSON output: %w", err)
 		}
 		fmt.Println(string(jsonData))
-		return
+		return nil
 	}
 
 	// Choose output format
@@ -42,6 +40,7 @@ func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string
 		// Default to pretty for backward compatibility
 		printFormattedOutput(deps, reverseDeps, options)
 	}
+	return nil
 }
 
 func printFormattedOutput(deps map[string][]string, reverseDeps map[string][]string, options Options) {
