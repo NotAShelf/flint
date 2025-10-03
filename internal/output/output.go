@@ -14,9 +14,13 @@ type Options struct {
 	Verbose                bool
 	Merge                  bool
 	FailIfMultipleVersions bool
+	Quiet                  bool
 }
 
 func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string, options Options) error {
+	if options.Quiet {
+		return nil
+	}
 	if options.OutputFormat == "json" {
 		output := map[string]any{
 			"dependencies":         deps,

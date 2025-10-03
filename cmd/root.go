@@ -17,6 +17,7 @@ var (
 	failIfMultipleVersions bool
 	outputFormat           string
 	merge                  bool
+	quiet                  bool
 )
 
 var rootCmd = &cobra.Command{
@@ -40,6 +41,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&failIfMultipleVersions, "fail-if-multiple-versions", false, "exit with error if multiple versions found")
 	rootCmd.Flags().StringVarP(&outputFormat, "output", "o", "pretty", "output format: plain, pretty, or json")
 	rootCmd.Flags().BoolVarP(&merge, "merge", "m", false, "merge all dependants into one list for each input")
+	rootCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all non-error output")
 
 	rootCmd.SetVersionTemplate(`{{printf "%s version %s\n" .Name .Version}}`)
 }
@@ -62,6 +64,7 @@ func runFlint() error {
 		Verbose:                verbose,
 		Merge:                  merge,
 		FailIfMultipleVersions: failIfMultipleVersions,
+		Quiet:                  quiet,
 	}
 
 	// Print the dependencies
