@@ -4,8 +4,6 @@
     <pre>Flint</pre>
 </h1>
 
-[![Go Build]()](/workflows/go.yml)
-
 <div align="center">
     <a alt="CI" href="https://github.com/NotAShelf/flint/actions">
         <img
