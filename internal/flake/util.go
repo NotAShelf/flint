@@ -15,12 +15,7 @@ func safeGetString(m map[string]any, key string) string {
 	return ""
 }
 
-func flakeURL(dep map[string]any) string {
-	locked, ok := dep["locked"].(map[string]any)
-	if !ok {
-		return ""
-	}
-
+func flakeURL(locked map[string]any) string {
 	repo := Input{
 		Type:  safeGetString(locked, "type"),
 		Owner: safeGetString(locked, "owner"),
@@ -31,7 +26,24 @@ func flakeURL(dep map[string]any) string {
 	repo.URL = safeGetString(locked, "url")
 	repo.Path = safeGetString(locked, "path")
 
-	return generateRepoURL(repo)
+	url := generateRepoURL(repo)
+	rev := safeGetString(locked, "rev")
+	narHash := safeGetString(locked, "narHash")
+
+	// Compose a unique key for the dependency, including version info
+	if rev != "" || narHash != "" {
+		url += "?"
+		if rev != "" {
+			url += "rev=" + rev
+		}
+		if narHash != "" {
+			if rev != "" {
+				url += "&"
+			}
+			url += "narHash=" + narHash
+		}
+	}
+	return url
 }
 
 func generateRepoURL(repo Input) string {
@@ -75,20 +87,21 @@ func AnalyzeFlake(flakeLock FlakeLock) Relations {
 			}
 		}
 
-		url := ""
 		if node.Locked != nil {
-			repo := Input{
-				Type:  node.Locked.Type,
-				Owner: node.Locked.Owner,
-				Repo:  node.Locked.Repo,
-				Host:  node.Locked.Host,
-				URL:   node.Locked.URL,
-				Path:  node.Locked.Path,
+			lockedMap := map[string]any{
+				"type":    node.Locked.Type,
+				"owner":   node.Locked.Owner,
+				"repo":    node.Locked.Repo,
+				"host":    node.Locked.Host,
+				"url":     node.Locked.URL,
+				"path":    node.Locked.Path,
+				"rev":     node.Locked.Rev,
+				"narHash": node.Locked.NarHash,
 			}
-			url = generateRepoURL(repo)
-		}
-		if url != "" {
-			deps[url] = append(deps[url], name)
+			url := flakeURL(lockedMap)
+			if url != "" {
+				deps[url] = append(deps[url], name)
+			}
 		}
 	}
 
