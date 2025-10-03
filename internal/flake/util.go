@@ -71,22 +71,9 @@ func AnalyzeFlake(flakeLock FlakeLock) Relations {
 	deps := make(map[string][]string)
 	reverseDeps := make(map[string][]string)
 
-	for name, node := range flakeLock.Nodes {
-		if node.Inputs != nil {
-			for _, input := range node.Inputs {
-				switch v := input.(type) {
-				case string:
-					reverseDeps[v] = append(reverseDeps[v], name)
-				case []any:
-					for _, i := range v {
-						if str, ok := i.(string); ok {
-							reverseDeps[str] = append(reverseDeps[str], name)
-						}
-					}
-				}
-			}
-		}
-
+	// First we build a map from node name to its locked version key (url)
+	nodeToURL := make(map[string]string)
+	for nodeName, node := range flakeLock.Nodes {
 		if node.Locked != nil {
 			lockedMap := map[string]any{
 				"type":    node.Locked.Type,
@@ -100,7 +87,32 @@ func AnalyzeFlake(flakeLock FlakeLock) Relations {
 			}
 			url := flakeURL(lockedMap)
 			if url != "" {
-				deps[url] = append(deps[url], name)
+				nodeToURL[nodeName] = url
+			}
+		}
+	}
+
+	// Then, for each node with inputs, we map the input name to the locked
+	// node/version and use the referencing node as alias
+	for nodeName, node := range flakeLock.Nodes {
+		if node.Inputs != nil {
+			for _, input := range node.Inputs {
+				switch v := input.(type) {
+				case string:
+					if url, ok := nodeToURL[v]; ok {
+						deps[url] = append(deps[url], nodeName)
+						reverseDeps[v] = append(reverseDeps[v], nodeName)
+					}
+				case []any:
+					for _, i := range v {
+						if str, ok := i.(string); ok {
+							if url, ok := nodeToURL[str]; ok {
+								deps[url] = append(deps[url], nodeName)
+								reverseDeps[str] = append(reverseDeps[str], nodeName)
+							}
+						}
+					}
+				}
 			}
 		}
 	}
