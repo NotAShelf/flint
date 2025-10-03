@@ -55,15 +55,13 @@ func generateRepoURL(repo Input) string {
 	}
 }
 
-func AnalyzeFlake(flakeLock map[string]any) Relations {
+func AnalyzeFlake(flakeLock FlakeLock) Relations {
 	deps := make(map[string][]string)
 	reverseDeps := make(map[string][]string)
 
-	nodes, _ := flakeLock["nodes"].(map[string]any)
-	for name, depInterface := range nodes {
-		dep, _ := depInterface.(map[string]any)
-		if inputs, ok := dep["inputs"].(map[string]any); ok {
-			for _, input := range inputs {
+	for name, node := range flakeLock.Nodes {
+		if node.Inputs != nil {
+			for _, input := range node.Inputs {
 				switch v := input.(type) {
 				case string:
 					reverseDeps[v] = append(reverseDeps[v], name)
@@ -77,7 +75,18 @@ func AnalyzeFlake(flakeLock map[string]any) Relations {
 			}
 		}
 
-		url := flakeURL(dep)
+		url := ""
+		if node.Locked != nil {
+			repo := Input{
+				Type:  node.Locked.Type,
+				Owner: node.Locked.Owner,
+				Repo:  node.Locked.Repo,
+				Host:  node.Locked.Host,
+				URL:   node.Locked.URL,
+				Path:  node.Locked.Path,
+			}
+			url = generateRepoURL(repo)
+		}
 		if url != "" {
 			deps[url] = append(deps[url], name)
 		}

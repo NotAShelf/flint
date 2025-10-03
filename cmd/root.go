@@ -50,7 +50,7 @@ func runFlint() error {
 		return fmt.Errorf("error reading flake.lock: %w", err)
 	}
 
-	var flakeLock map[string]any
+	var flakeLock flake.FlakeLock
 	if err := json.Unmarshal(data, &flakeLock); err != nil {
 		return fmt.Errorf("error decoding flake.lock: %w", err)
 	}
