@@ -2,6 +2,7 @@ package flake
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Safely retrieves a string value from a map, returning an empty string
@@ -118,4 +119,25 @@ func AnalyzeFlake(flakeLock FlakeLock) Relations {
 	}
 
 	return Relations{Deps: deps, ReverseDeps: reverseDeps}
+}
+
+// Extract repository identity from URL (without version info)
+func ExtractRepoIdentity(url string) string {
+	// Handle special case for gitlab/github with host parameter
+	if strings.Contains(url, "?host=") {
+		// Find the first ? that starts version parameters (not host)
+		hostIdx := strings.Index(url, "?host=")
+		afterHost := url[hostIdx+len("?host="):]
+		// Find the next ? that starts version parameters
+		if versionIdx := strings.Index(afterHost, "?"); versionIdx != -1 {
+			return url[:hostIdx+len("?host=")+versionIdx]
+		}
+		return url
+	}
+
+	// Remove query parameters (rev, narHash, etc.)
+	if idx := strings.Index(url, "?"); idx != -1 {
+		return url[:idx]
+	}
+	return url
 }
