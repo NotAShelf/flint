@@ -6,14 +6,12 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	util "notashelf.dev/flint/internal/util"
 	"notashelf.dev/flint/internal/flake"
+	util "notashelf.dev/flint/internal/util"
 )
 
-
-
 // Group by repository identity
-func detectDuplicatesByRepo(deps map[string][]string) map[string][]string {
+func DetectDuplicatesByRepo(deps map[string][]string) map[string][]string {
 	repoGroups := make(map[string][]string)
 
 	for url := range deps {
@@ -45,7 +43,7 @@ func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string
 		return nil
 	}
 
-	duplicateDeps := detectDuplicatesByRepo(deps)
+	duplicateDeps := DetectDuplicatesByRepo(deps)
 
 	// Build a mapping from URL to dependants for easier lookup. The dependants
 	// of a URL are the nodes that directly reference it
@@ -83,17 +81,18 @@ func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string
 	// Choose output format
 	switch options.OutputFormat {
 	case "plain":
-		printPlainOutput(duplicateDeps, urlToDependants, options)
+		printPlainOutput(deps, urlToDependants, options)
 	case "pretty":
-		printFormattedOutput(duplicateDeps, urlToDependants, options)
+		printFormattedOutput(deps, urlToDependants, options)
 	default:
 		// Default to pretty for backward compatibility
-		printFormattedOutput(duplicateDeps, urlToDependants, options)
+		printFormattedOutput(deps, urlToDependants, options)
 	}
 	return nil
 }
 
 func printFormattedOutput(deps map[string][]string, urlToDependants map[string][]string, options Options) {
+	duplicateDeps := DetectDuplicatesByRepo(deps)
 	// Styles for CI-friendly output
 	var (
 		headerStyle, successStyle, warningStyle, errorStyle, infoStyle,
@@ -176,7 +175,7 @@ func printFormattedOutput(deps map[string][]string, urlToDependants map[string][
 	duplicateInputs := 0
 	totalDuplicates := 0
 
-	for _, urls := range deps {
+	for _, urls := range duplicateDeps {
 		if len(urls) > 1 {
 			duplicateInputs++
 			totalDuplicates += len(urls) - 1
@@ -210,10 +209,7 @@ func printFormattedOutput(deps map[string][]string, urlToDependants map[string][
 	fmt.Println()
 
 	processedCount := 0
-	for repoIdentity, urls := range deps {
-		if len(urls) <= 1 {
-			continue
-		}
+	for repoIdentity, duplicateUrls := range duplicateDeps {
 		processedCount++
 
 		// Extract repository name from identity for display
@@ -225,12 +221,12 @@ func printFormattedOutput(deps map[string][]string, urlToDependants map[string][
 		fmt.Println(errorStyle.Render(fmt.Sprintf("(%d) %s",
 			processedCount, repoName)))
 		fmt.Printf("   %s %s\n", dimStyle.Render("├─"), boldStyle.Render("Repository: ")+urlStyle.Render(repoIdentity))
-		fmt.Printf("   %s %s\n", dimStyle.Render("├─"), warningStyle.Render(fmt.Sprintf("Versions: %d", len(urls))))
+		fmt.Printf("   %s %s\n", dimStyle.Render("├─"), warningStyle.Render(fmt.Sprintf("Versions: %d", len(duplicateUrls))))
 
 		if options.Merge {
 			// Build dependants set; find all nodes that use any version of this repo
 			dependantsSet := make(map[string]struct{})
-			for _, url := range urls {
+			for _, url := range duplicateUrls {
 				if dependants, exists := urlToDependants[url]; exists {
 					for _, dependant := range dependants {
 						dependantsSet[dependant] = struct{}{}
@@ -250,8 +246,8 @@ func printFormattedOutput(deps map[string][]string, urlToDependants map[string][
 			}
 		} else {
 			// Show each version
-			for i, url := range urls {
-				isLast := i == len(urls)-1
+			for i, url := range duplicateUrls {
+				isLast := i == len(duplicateUrls)-1
 				connector := "├─"
 				if isLast {
 					connector = "└─"
@@ -327,6 +323,7 @@ func printFormattedOutput(deps map[string][]string, urlToDependants map[string][
 }
 
 func printPlainOutput(deps map[string][]string, urlToDependants map[string][]string, options Options) {
+	duplicateDeps := DetectDuplicatesByRepo(deps)
 	// Simple styles for backward compatibility
 	var titleStyle, inputStyle, aliasStyle, depStyle, summaryStyle lipgloss.Style
 
@@ -368,10 +365,8 @@ func printPlainOutput(deps map[string][]string, urlToDependants map[string][]str
 	hasMultipleVersions := false
 	fmt.Println(titleStyle.Render("Dependency Analysis Report"))
 
-	for repoIdentity, urls := range deps {
-		if len(urls) <= 1 {
-			continue
-		}
+	for repoIdentity, urls := range duplicateDeps {
+		hasMultipleVersions = true
 
 		hasMultipleVersions = true
 		fmt.Println(inputStyle.Render(fmt.Sprintf("Repository: %s", repoIdentity)))
