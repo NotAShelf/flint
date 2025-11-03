@@ -7,23 +7,17 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	util "notashelf.dev/flint/internal/util"
+	"notashelf.dev/flint/internal/flake"
 )
 
-// Extract repository identity from URL without version info
-func extractRepoIdentity(url string) string {
-	// Remove query parameters (rev, narHash, etc.)
-	if idx := strings.Index(url, "?"); idx != -1 {
-		return url[:idx]
-	}
-	return url
-}
+
 
 // Group by repository identity
 func detectDuplicatesByRepo(deps map[string][]string) map[string][]string {
 	repoGroups := make(map[string][]string)
 
 	for url := range deps {
-		repoIdentity := extractRepoIdentity(url)
+		repoIdentity := flake.ExtractRepoIdentity(url)
 		repoGroups[repoIdentity] = append(repoGroups[repoIdentity], url)
 	}
 
