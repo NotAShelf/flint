@@ -20,21 +20,6 @@ var (
 	quiet                  bool
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "flint",
-	Short: "Flake Input Linter - analyze flake.lock for duplicate inputs",
-	Long: `Flint (flake input linter) is a utility for analyzing a given flake.lock
-for duplicate inputs. It helps identify when multiple versions of the same
-dependency are present in your Nix flake dependency tree.`,
-	Example: `  flint --lockfile=/path/to/flake.lock --verbose
-  flint --lockfile=/path/to/flake.lock --output=json
-  flint --lockfile=/path/to/flake.lock --output=plain
-  flint --merge`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return runFlint()
-	},
-}
-
 func init() {
 	rootCmd.Flags().StringVarP(&lockPath, "lockfile", "l", "flake.lock", "path to flake.lock")
 	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
@@ -46,43 +31,57 @@ func init() {
 	rootCmd.SetVersionTemplate(`{{printf "%s version %s\n" .Name .Version}}`)
 }
 
-func runFlint() error {
-	data, err := os.ReadFile(lockPath)
-	if err != nil {
-		return fmt.Errorf("error reading flake.lock: %w", err)
-	}
+var rootCmd = &cobra.Command{
+	Use:   "flint",
+	Short: "Flake Input Linter - analyze flake.lock for duplicate inputs",
+	Long: `Flint (flake input linter) is a utility for analyzing a given flake.lock
+for duplicate inputs. It helps identify when multiple versions of the same
+dependency are present in your Nix flake dependency tree.`,
+	Example: `  flint --lockfile=/path/to/flake.lock --verbose
+  flint --lockfile=/path/to/flake.lock --output=json
+  flint --lockfile=/path/to/flake.lock --output=plain
+  flint --merge`,
 
-	var flakeLock flake.FlakeLock
-	if err := json.Unmarshal(data, &flakeLock); err != nil {
-		return fmt.Errorf("error decoding flake.lock: %w", err)
-	}
+	RunE: func(cmd *cobra.Command, args []string) error {
 
-	flakeData := flake.AnalyzeFlake(flakeLock)
+		data, err := os.ReadFile(lockPath)
+		if err != nil {
+			return fmt.Errorf("error reading flake.lock: %w", err)
+		}
 
-	options := output.Options{
-		OutputFormat:           outputFormat,
-		Verbose:                verbose,
-		Merge:                  merge,
-		FailIfMultipleVersions: failIfMultipleVersions,
-		Quiet:                  quiet,
-	}
+		var flakeLock flake.FlakeLock
+		if err := json.Unmarshal(data, &flakeLock); err != nil {
+			return fmt.Errorf("error decoding flake.lock: %w", err)
+		}
 
-	// Print the dependencies
-	if err := output.PrintDependencies(flakeData.Deps, flakeData.ReverseDeps, options); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+		flakeData := flake.AnalyzeFlake(flakeLock)
 
-	// Return an error if multiple versions were found and the flag is set
-	if failIfMultipleVersions {
-		for _, aliases := range flakeData.Deps {
-			if len(aliases) > 1 {
-				return fmt.Errorf("multiple versions detected: exiting with error as requested")
+		options := output.Options{
+			OutputFormat:           outputFormat,
+			Verbose:                verbose,
+			Merge:                  merge,
+			FailIfMultipleVersions: failIfMultipleVersions,
+			Quiet:                  quiet,
+		}
+
+		// Print dependencies
+		if err := output.PrintDependencies(flakeData.Deps, flakeData.ReverseDeps, options); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Return an error if multiple versions were found and the flag is set
+		if failIfMultipleVersions {
+			for _, aliases := range flakeData.Deps {
+				if len(aliases) > 1 {
+					fmt.Fprintf(os.Stderr, "Error: multiple versions detected.\n Exiting with error as '--fail-if-multiple-versions' is set\n")
+					os.Exit(1)
+				}
 			}
 		}
-	}
 
-	return nil
+		return nil
+	},
 }
 
 func Execute() {
