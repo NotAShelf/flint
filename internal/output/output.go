@@ -3,10 +3,11 @@ package output
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"notashelf.dev/flint/internal/flake"
+	gloss "github.com/charmbracelet/lipgloss"
+	flake "notashelf.dev/flint/internal/flake"
 	util "notashelf.dev/flint/internal/util"
 )
 
@@ -38,9 +39,35 @@ type Options struct {
 	Quiet                  bool
 }
 
+// You cannot imagine how much I'm missing clap right now.
+// Or Rust in general...
+func ValidateOutputFormat(format string) error {
+	validFormats := []string{"json", "plain", "pretty"}
+
+	if slices.Contains(validFormats, format) {
+		return nil
+	}
+
+	return fmt.Errorf("invalid output format '%s'. Valid formats are: %s", format, strings.Join(validFormats, ", "))
+}
+
+func ShouldFailOnDuplicates(options Options, deps map[string][]string) bool {
+	if !options.FailIfMultipleVersions {
+		return false
+	}
+
+	duplicateDeps := DetectDuplicatesByRepo(deps)
+	return len(duplicateDeps) > 0
+}
+
 func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string, options Options) error {
 	if options.Quiet {
 		return nil
+	}
+
+	// Validate output format
+	if err := ValidateOutputFormat(options.OutputFormat); err != nil {
+		return err
 	}
 
 	duplicateDeps := DetectDuplicatesByRepo(deps)
@@ -96,7 +123,7 @@ func printFormattedOutput(deps map[string][]string, urlToDependants map[string][
 	// Styles for CI-friendly output
 	var (
 		headerStyle, successStyle, warningStyle, errorStyle, infoStyle,
-		dimStyle, boldStyle, urlStyle, aliasStyle, dependantStyle lipgloss.Style
+		dimStyle, boldStyle, urlStyle, aliasStyle, dependantStyle gloss.Style
 	)
 
 	// Status symbols
@@ -104,7 +131,7 @@ func printFormattedOutput(deps map[string][]string, urlToDependants map[string][
 
 	if util.IsNoColor() {
 		// Plain text fallbacks for CI environments
-		emptyStyle := lipgloss.NewStyle()
+		emptyStyle := gloss.NewStyle()
 		headerStyle = emptyStyle
 		successStyle = emptyStyle
 		warningStyle = emptyStyle
@@ -123,43 +150,43 @@ func printFormattedOutput(deps map[string][]string, urlToDependants map[string][
 		infoIcon = "[i]"
 	} else {
 		// Rich colors and styles for interactive terminals
-		headerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("12")).
+		headerStyle = gloss.NewStyle().
+			Foreground(gloss.Color("12")).
 			Bold(true).
 			Underline(true)
 
-		successStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("10")).
+		successStyle = gloss.NewStyle().
+			Foreground(gloss.Color("10")).
 			Bold(true)
 
-		warningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("11")).
+		warningStyle = gloss.NewStyle().
+			Foreground(gloss.Color("11")).
 			Bold(true)
 
-		errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("9")).
+		errorStyle = gloss.NewStyle().
+			Foreground(gloss.Color("9")).
 			Bold(true)
 
-		infoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14")).
+		infoStyle = gloss.NewStyle().
+			Foreground(gloss.Color("14")).
 			Bold(true)
 
-		dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8"))
+		dimStyle = gloss.NewStyle().
+			Foreground(gloss.Color("8"))
 
-		boldStyle = lipgloss.NewStyle().
+		boldStyle = gloss.NewStyle().
 			Bold(true)
 
-		urlStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("6")).
+		urlStyle = gloss.NewStyle().
+			Foreground(gloss.Color("6")).
 			Underline(true)
 
-		aliasStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("13")).
+		aliasStyle = gloss.NewStyle().
+			Foreground(gloss.Color("13")).
 			Italic(true)
 
-		dependantStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("3"))
+		dependantStyle = gloss.NewStyle().
+			Foreground(gloss.Color("3"))
 
 		// Rich symbols for interactive terminals
 		// Nerdfonts would be preferable, but we use basic symbols for compatibility
@@ -325,11 +352,11 @@ func printFormattedOutput(deps map[string][]string, urlToDependants map[string][
 func printPlainOutput(deps map[string][]string, urlToDependants map[string][]string, options Options) {
 	duplicateDeps := DetectDuplicatesByRepo(deps)
 	// Simple styles for backward compatibility
-	var titleStyle, inputStyle, aliasStyle, depStyle, summaryStyle lipgloss.Style
+	var titleStyle, inputStyle, aliasStyle, depStyle, summaryStyle gloss.Style
 
 	if util.IsNoColor() {
 		// Reuse a single empty style
-		emptyStyle := lipgloss.NewStyle()
+		emptyStyle := gloss.NewStyle()
 		titleStyle = emptyStyle
 		inputStyle = emptyStyle
 		aliasStyle = emptyStyle
@@ -337,28 +364,28 @@ func printPlainOutput(deps map[string][]string, urlToDependants map[string][]str
 		summaryStyle = emptyStyle
 	} else {
 		// Titles, bold and underlined.
-		titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("5")).
+		titleStyle = gloss.NewStyle().
+			Foreground(gloss.Color("5")).
 			Bold(true).
 			Underline(true)
 
 		// Name of the input from a flake's root
-		inputStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("6")).
+		inputStyle = gloss.NewStyle().
+			Foreground(gloss.Color("6")).
 			Bold(true)
 
 		// Aliases to an input
-		aliasStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("4")).
+		aliasStyle = gloss.NewStyle().
+			Foreground(gloss.Color("4")).
 			Italic(true)
 
 		// Inputs that depend on a given input
-		depStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("2"))
+		depStyle = gloss.NewStyle().
+			Foreground(gloss.Color("2"))
 
 		// Summary at the end
-		summaryStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("3")).
+		summaryStyle = gloss.NewStyle().
+			Foreground(gloss.Color("3")).
 			Bold(true)
 	}
 

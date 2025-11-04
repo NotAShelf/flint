@@ -71,12 +71,8 @@ dependency are present in your Nix flake dependency tree.`,
 		}
 
 		// Return an error if multiple versions were found and the flag is set
-		if failIfMultipleVersions {
-			duplicateDeps := output.DetectDuplicatesByRepo(flakeData.Deps)
-			if len(duplicateDeps) > 0 {
-				fmt.Fprintf(os.Stderr, "Error: multiple versions detected.\n Exiting with error as '--fail-if-multiple-versions' is set\n")
-				os.Exit(1)
-			}
+		if output.ShouldFailOnDuplicates(options, flakeData.Deps) {
+			os.Exit(1)
 		}
 
 		return nil
