@@ -61,13 +61,13 @@ func ShouldFailOnDuplicates(options Options, deps map[string][]string) bool {
 }
 
 func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string, options Options) error {
-	if options.Quiet {
-		return nil
-	}
-
-	// Validate output format
+	// Validate output format first, even in quiet mode
 	if err := ValidateOutputFormat(options.OutputFormat); err != nil {
 		return err
+	}
+
+	if options.Quiet {
+		return nil
 	}
 
 	duplicateDeps := DetectDuplicatesByRepo(deps)

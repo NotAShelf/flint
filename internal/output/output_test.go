@@ -123,3 +123,64 @@ func TestShouldFailOnDuplicates(t *testing.T) {
 		})
 	}
 }
+
+func TestPrintDependenciesQuietMode(t *testing.T) {
+	testCases := []struct {
+		name        string
+		options     Options
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name: "quiet mode with valid format",
+			options: Options{
+				Quiet:        true,
+				OutputFormat: "json",
+			},
+			expectError: false,
+		},
+		{
+			name: "quiet mode with invalid format should still validate",
+			options: Options{
+				Quiet:        true,
+				OutputFormat: "invalid",
+			},
+			expectError: true,
+			errorMsg:    "invalid output format 'invalid'",
+		},
+		{
+			name: "non-quiet mode with valid format",
+			options: Options{
+				Quiet:        false,
+				OutputFormat: "pretty",
+			},
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			deps := map[string][]string{
+				"github:owner/repo?rev=abc": {"root"},
+			}
+			reverseDeps := map[string][]string{
+				"repo": {"root"},
+			}
+
+			err := PrintDependencies(deps, reverseDeps, tc.options)
+
+			if tc.expectError && err == nil {
+				t.Errorf("expected error for quiet mode test '%s', got nil", tc.name)
+			}
+			if !tc.expectError && err != nil {
+				t.Errorf("expected no error for quiet mode test '%s', got: %v", tc.name, err)
+			}
+
+			if tc.expectError && err != nil && tc.errorMsg != "" {
+				if !strings.Contains(err.Error(), tc.errorMsg) {
+					t.Errorf("expected error message to contain '%s', got: %s", tc.errorMsg, err.Error())
+				}
+			}
+		})
+	}
+}
