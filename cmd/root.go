@@ -18,6 +18,7 @@ var (
 	outputFormat           string
 	merge                  bool
 	quiet                  bool
+	checkUpdates           bool
 )
 
 func init() {
@@ -27,20 +28,19 @@ func init() {
 	rootCmd.Flags().StringVarP(&outputFormat, "output", "o", "pretty", "output format: plain, pretty, or json")
 	rootCmd.Flags().BoolVarP(&merge, "merge", "m", false, "merge all dependants into one list for each input")
 	rootCmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "suppress all non-error output")
+	rootCmd.Flags().BoolVarP(&checkUpdates, "check-updates", "u", false, "check for available updates for flake inputs")
 
 	rootCmd.SetVersionTemplate(`{{printf "%s version %s\n" .Name .Version}}`)
 }
 
 var rootCmd = &cobra.Command{
 	Use:   "flint",
-	Short: "Flake Input Linter - analyze flake.lock for duplicate inputs",
-	Long: `Flint (flake input linter) is a utility for analyzing a given flake.lock
-for duplicate inputs. It helps identify when multiple versions of the same
-dependency are present in your Nix flake dependency tree.`,
+	Short: "Flake Input Linter - analyze flake.lock for duplicate inputs and check updates",
 	Example: `  flint --lockfile=/path/to/flake.lock --verbose
   flint --lockfile=/path/to/flake.lock --output=json
   flint --lockfile=/path/to/flake.lock --output=plain
-  flint --merge`,
+  flint --merge
+  flint --check-updates`,
 
 	RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -52,6 +52,25 @@ dependency are present in your Nix flake dependency tree.`,
 		var flakeLock flake.FlakeLock
 		if err := json.Unmarshal(data, &flakeLock); err != nil {
 			return fmt.Errorf("error decoding flake.lock: %w", err)
+		}
+
+		if checkUpdates {
+			updates, err := flake.CheckUpdates(flakeLock, verbose)
+			if err != nil {
+				return fmt.Errorf("error checking updates: %w", err)
+			}
+
+			options := output.Options{
+				OutputFormat: outputFormat,
+				Verbose:      verbose,
+				Quiet:        quiet,
+			}
+
+			if err := output.PrintUpdates(updates, options); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			return nil
 		}
 
 		flakeData := flake.AnalyzeFlake(flakeLock)

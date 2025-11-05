@@ -44,3 +44,17 @@ type Input struct {
 	URL   string
 	Path  string
 }
+
+type UpdateStatus struct {
+	InputName  string
+	CurrentRev string
+	LatestRev  string
+	CurrentURL string
+	LatestURL  string
+	IsUpdate   bool
+	Error      string
+}
+
+type UpdateResults struct {
+	Updates []UpdateStatus
+}
