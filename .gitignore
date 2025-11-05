@@ -1,8 +1,9 @@
-# ignore compiled binary
-flint
-
 # Nix
-result*
+/.direnv/
+/result*
 
-# direnv
-.direnv/
+# Ignore build artifact
+/flint
+
+# Ignore dummy test data
+/test/

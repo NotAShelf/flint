@@ -3,11 +3,33 @@ package output
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	gloss "github.com/charmbracelet/lipgloss"
+	flake "notashelf.dev/flint/internal/flake"
 	util "notashelf.dev/flint/internal/util"
 )
+
+// Group by repository identity
+func DetectDuplicatesByRepo(deps map[string][]string) map[string][]string {
+	repoGroups := make(map[string][]string)
+
+	for url := range deps {
+		repoIdentity := flake.ExtractRepoIdentity(url)
+		repoGroups[repoIdentity] = append(repoGroups[repoIdentity], url)
+	}
+
+	// Only return repositories that have multiple versions
+	duplicates := make(map[string][]string)
+	for repoIdentity, urls := range repoGroups {
+		if len(urls) > 1 {
+			duplicates[repoIdentity] = urls
+		}
+	}
+
+	return duplicates
+}
 
 type Options struct {
 	OutputFormat           string
@@ -17,19 +39,68 @@ type Options struct {
 	Quiet                  bool
 }
 
+// You cannot imagine how much I'm missing clap right now.
+// Or Rust in general...
+func ValidateOutputFormat(format string) error {
+	validFormats := []string{"json", "plain", "pretty"}
+
+	if slices.Contains(validFormats, format) {
+		return nil
+	}
+
+	return fmt.Errorf("invalid output format '%s'. Valid formats are: %s", format, strings.Join(validFormats, ", "))
+}
+
+func ShouldFailOnDuplicates(options Options, deps map[string][]string) bool {
+	if !options.FailIfMultipleVersions {
+		return false
+	}
+
+	duplicateDeps := DetectDuplicatesByRepo(deps)
+	return len(duplicateDeps) > 0
+}
+
 func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string, options Options) error {
+	// Validate output format first, even in quiet mode
+	if err := ValidateOutputFormat(options.OutputFormat); err != nil {
+		return err
+	}
+
 	if options.Quiet {
 		return nil
 	}
+
+	duplicateDeps := DetectDuplicatesByRepo(deps)
+
+	// Build a mapping from URL to dependants for easier lookup. The dependants
+	// of a URL are the nodes that directly reference it
+	urlToDependants := make(map[string][]string)
+	for url, aliases := range deps {
+		dependantsSet := make(map[string]struct{})
+		for _, alias := range aliases {
+			dependantsSet[alias] = struct{}{}
+		}
+
+		dependants := make([]string, 0, len(dependantsSet))
+		for dependant := range dependantsSet {
+			dependants = append(dependants, dependant)
+		}
+
+		urlToDependants[url] = dependants
+	}
+
 	if options.OutputFormat == "json" {
 		output := map[string]any{
 			"dependencies":         deps,
 			"reverse_dependencies": reverseDeps,
+			"duplicates":           duplicateDeps,
 		}
+
 		jsonData, err := json.MarshalIndent(output, "", "  ")
 		if err != nil {
 			return fmt.Errorf("error marshaling JSON output: %w", err)
 		}
+
 		fmt.Println(string(jsonData))
 		return nil
 	}
@@ -37,21 +108,22 @@ func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string
 	// Choose output format
 	switch options.OutputFormat {
 	case "plain":
-		printPlainOutput(deps, reverseDeps, options)
+		printPlainOutput(deps, urlToDependants, options)
 	case "pretty":
-		printFormattedOutput(deps, reverseDeps, options)
+		printFormattedOutput(deps, urlToDependants, options)
 	default:
 		// Default to pretty for backward compatibility
-		printFormattedOutput(deps, reverseDeps, options)
+		printFormattedOutput(deps, urlToDependants, options)
 	}
 	return nil
 }
 
-func printFormattedOutput(deps map[string][]string, reverseDeps map[string][]string, options Options) {
+func printFormattedOutput(deps map[string][]string, urlToDependants map[string][]string, options Options) {
+	duplicateDeps := DetectDuplicatesByRepo(deps)
 	// Styles for CI-friendly output
 	var (
 		headerStyle, successStyle, warningStyle, errorStyle, infoStyle,
-		dimStyle, boldStyle, urlStyle, aliasStyle, dependantStyle lipgloss.Style
+		dimStyle, boldStyle, urlStyle, aliasStyle, dependantStyle gloss.Style
 	)
 
 	// Status symbols
@@ -59,7 +131,7 @@ func printFormattedOutput(deps map[string][]string, reverseDeps map[string][]str
 
 	if util.IsNoColor() {
 		// Plain text fallbacks for CI environments
-		emptyStyle := lipgloss.NewStyle()
+		emptyStyle := gloss.NewStyle()
 		headerStyle = emptyStyle
 		successStyle = emptyStyle
 		warningStyle = emptyStyle
@@ -78,43 +150,43 @@ func printFormattedOutput(deps map[string][]string, reverseDeps map[string][]str
 		infoIcon = "[i]"
 	} else {
 		// Rich colors and styles for interactive terminals
-		headerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("12")).
+		headerStyle = gloss.NewStyle().
+			Foreground(gloss.Color("12")).
 			Bold(true).
 			Underline(true)
 
-		successStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("10")).
+		successStyle = gloss.NewStyle().
+			Foreground(gloss.Color("10")).
 			Bold(true)
 
-		warningStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("11")).
+		warningStyle = gloss.NewStyle().
+			Foreground(gloss.Color("11")).
 			Bold(true)
 
-		errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("9")).
+		errorStyle = gloss.NewStyle().
+			Foreground(gloss.Color("9")).
 			Bold(true)
 
-		infoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14")).
+		infoStyle = gloss.NewStyle().
+			Foreground(gloss.Color("14")).
 			Bold(true)
 
-		dimStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8"))
+		dimStyle = gloss.NewStyle().
+			Foreground(gloss.Color("8"))
 
-		boldStyle = lipgloss.NewStyle().
+		boldStyle = gloss.NewStyle().
 			Bold(true)
 
-		urlStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("6")).
+		urlStyle = gloss.NewStyle().
+			Foreground(gloss.Color("6")).
 			Underline(true)
 
-		aliasStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("13")).
+		aliasStyle = gloss.NewStyle().
+			Foreground(gloss.Color("13")).
 			Italic(true)
 
-		dependantStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("3"))
+		dependantStyle = gloss.NewStyle().
+			Foreground(gloss.Color("3"))
 
 		// Rich symbols for interactive terminals
 		// Nerdfonts would be preferable, but we use basic symbols for compatibility
@@ -130,10 +202,10 @@ func printFormattedOutput(deps map[string][]string, reverseDeps map[string][]str
 	duplicateInputs := 0
 	totalDuplicates := 0
 
-	for _, aliases := range deps {
-		if len(aliases) > 1 {
+	for _, urls := range duplicateDeps {
+		if len(urls) > 1 {
 			duplicateInputs++
-			totalDuplicates += len(aliases) - 1
+			totalDuplicates += len(urls) - 1
 		}
 	}
 
@@ -146,16 +218,16 @@ func printFormattedOutput(deps map[string][]string, reverseDeps map[string][]str
 		return
 	}
 
-	fmt.Println(infoStyle.Render(fmt.Sprintf("%s Analyzing %d unique inputs...", infoIcon, totalInputs)))
+	fmt.Println(infoStyle.Render(fmt.Sprintf("%s Analyzing %d unique repositories...", infoIcon, totalInputs)))
 
 	if duplicateInputs == 0 {
-		fmt.Println(successStyle.Render(fmt.Sprintf("%s No duplicate inputs detected", successIcon)))
+		fmt.Println(successStyle.Render(fmt.Sprintf("%s No duplicate repositories detected", successIcon)))
 		fmt.Println()
-		fmt.Println(dimStyle.Render("All inputs use unique versions. Your dependency tree is optimized!"))
+		fmt.Println(dimStyle.Render("All repositories use unique versions. Your dependency tree is optimized!"))
 		return
 	}
 
-	fmt.Println(warningStyle.Render(fmt.Sprintf("%s Found %d inputs with multiple versions (%d total duplicates)",
+	fmt.Println(warningStyle.Render(fmt.Sprintf("%s Found %d repositories with multiple versions (%d total duplicates)",
 		warningIcon, duplicateInputs, totalDuplicates)))
 	fmt.Println()
 
@@ -164,33 +236,28 @@ func printFormattedOutput(deps map[string][]string, reverseDeps map[string][]str
 	fmt.Println()
 
 	processedCount := 0
-	for url, aliases := range deps {
+	for repoIdentity, duplicateUrls := range duplicateDeps {
+		processedCount++
+
+		// Extract repository name from identity for display
+		repoName := repoIdentity
+		if lastSlash := strings.LastIndex(repoIdentity, "/"); lastSlash != -1 {
+			repoName = repoIdentity[lastSlash+1:]
+		}
+
+		fmt.Println(errorStyle.Render(fmt.Sprintf("(%d) %s",
+			processedCount, repoName)))
+		fmt.Printf("   %s %s\n", dimStyle.Render("├─"), boldStyle.Render("Repository: ")+urlStyle.Render(repoIdentity))
+		fmt.Printf("   %s %s\n", dimStyle.Render("├─"), warningStyle.Render(fmt.Sprintf("Versions: %d", len(duplicateUrls))))
+
 		if options.Merge {
-			if len(aliases) <= 1 {
-				continue
-			}
-			processedCount++
-
-			// Extract main input name
-			// We'll prefer the shortest alias or first one
-			mainInputName := aliases[0]
-			for _, alias := range aliases {
-				if len(alias) < len(mainInputName) {
-					mainInputName = alias
-				}
-			}
-
-			// Merge mode output
-			fmt.Println(errorStyle.Render(fmt.Sprintf("(%d) %s",
-				processedCount, mainInputName)))
-			fmt.Printf("   %s %s\n", dimStyle.Render("├─"), boldStyle.Render("URL: ")+urlStyle.Render(url))
-			fmt.Printf("   %s %s\n", dimStyle.Render("├─"), warningStyle.Render(fmt.Sprintf("Repeats: %d", len(aliases))))
-
-			// Build dependants set only when needed
+			// Build dependants set; find all nodes that use any version of this repo
 			dependantsSet := make(map[string]struct{})
-			for _, alias := range aliases {
-				for _, dependant := range reverseDeps[alias] {
-					dependantsSet[dependant] = struct{}{}
+			for _, url := range duplicateUrls {
+				if dependants, exists := urlToDependants[url]; exists {
+					for _, dependant := range dependants {
+						dependantsSet[dependant] = struct{}{}
+					}
 				}
 			}
 
@@ -204,36 +271,39 @@ func printFormattedOutput(deps map[string][]string, reverseDeps map[string][]str
 			} else {
 				fmt.Printf("   %s %s\n", dimStyle.Render("└─"), dimStyle.Render("No direct dependants"))
 			}
-			fmt.Println()
 		} else {
-			if len(aliases) == 1 {
-				continue
-			}
-			processedCount++
-
-			// Extract main input name for non-merge mode too
-			mainInputName := aliases[0]
-			for _, alias := range aliases {
-				if len(alias) < len(mainInputName) {
-					mainInputName = alias
-				}
-			}
-
-			fmt.Println(errorStyle.Render(fmt.Sprintf("(%d) %s",
-				processedCount, mainInputName)))
-			fmt.Printf("   %s %s\n", dimStyle.Render("├─"), boldStyle.Render("URL: ")+urlStyle.Render(url))
-			fmt.Printf("   %s %s\n", dimStyle.Render("├─"), warningStyle.Render(fmt.Sprintf("Repeats: %d", len(aliases))))
-
-			for i, alias := range aliases {
-				isLast := i == len(aliases)-1
+			// Show each version
+			for i, url := range duplicateUrls {
+				isLast := i == len(duplicateUrls)-1
 				connector := "├─"
 				if isLast {
 					connector = "└─"
 				}
 
-				fmt.Printf("   %s %s\n", dimStyle.Render(connector), aliasStyle.Render(fmt.Sprintf("Alias: %s", alias)))
+				// Extract version info from URL
+				versionInfo := ""
+				if revIdx := strings.Index(url, "?rev="); revIdx != -1 {
+					revStart := revIdx + 5
+					revEnd := strings.Index(url[revStart:], "&")
+					if revEnd == -1 {
+						revEnd = len(url)
+					} else {
+						revEnd += revStart
+					}
+					if revEnd > revStart {
+						versionInfo = url[revStart:revEnd] // full rev
+						versionInfo = " (" + versionInfo + ")"
+					}
+				}
 
-				dependants := reverseDeps[alias]
+				fmt.Printf("   %s %s\n", dimStyle.Render(connector), aliasStyle.Render(fmt.Sprintf("Version%s", versionInfo)))
+
+				// Find dependants for this specific URL
+				dependants := []string{}
+				if deps, exists := urlToDependants[url]; exists {
+					dependants = deps
+				}
+
 				if len(dependants) > 0 {
 					subConnector := "│"
 					if isLast {
@@ -252,8 +322,8 @@ func printFormattedOutput(deps map[string][]string, reverseDeps map[string][]str
 						dimStyle.Render(fmt.Sprintf("Debug: %d dependants", len(dependants))))
 				}
 			}
-			fmt.Println()
 		}
+		fmt.Println()
 	}
 
 	// Summary with "actionable" advice
@@ -265,7 +335,7 @@ func printFormattedOutput(deps map[string][]string, reverseDeps map[string][]str
 	// and maybe we should suggest using `follows` in the flake.nix for each input that is detected. If
 	// I can find a good way, I can even add --patch flag to generate an actually actionable patch.
 	if duplicateInputs > 0 {
-		fmt.Println(errorStyle.Render(fmt.Sprintf("%s %d inputs have duplicate versions",
+		fmt.Println(errorStyle.Render(fmt.Sprintf("%s %d repositories have duplicate versions",
 			errorIcon, duplicateInputs)))
 		fmt.Println(warningStyle.Render(fmt.Sprintf("%s %d total duplicate dependencies detected",
 			warningIcon, totalDuplicates)))
@@ -279,13 +349,14 @@ func printFormattedOutput(deps map[string][]string, reverseDeps map[string][]str
 	}
 }
 
-func printPlainOutput(deps map[string][]string, reverseDeps map[string][]string, options Options) {
+func printPlainOutput(deps map[string][]string, urlToDependants map[string][]string, options Options) {
+	duplicateDeps := DetectDuplicatesByRepo(deps)
 	// Simple styles for backward compatibility
-	var titleStyle, inputStyle, aliasStyle, depStyle, summaryStyle lipgloss.Style
+	var titleStyle, inputStyle, aliasStyle, depStyle, summaryStyle gloss.Style
 
 	if util.IsNoColor() {
 		// Reuse a single empty style
-		emptyStyle := lipgloss.NewStyle()
+		emptyStyle := gloss.NewStyle()
 		titleStyle = emptyStyle
 		inputStyle = emptyStyle
 		aliasStyle = emptyStyle
@@ -293,46 +364,48 @@ func printPlainOutput(deps map[string][]string, reverseDeps map[string][]string,
 		summaryStyle = emptyStyle
 	} else {
 		// Titles, bold and underlined.
-		titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("5")).
+		titleStyle = gloss.NewStyle().
+			Foreground(gloss.Color("5")).
 			Bold(true).
 			Underline(true)
 
 		// Name of the input from a flake's root
-		inputStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("6")).
+		inputStyle = gloss.NewStyle().
+			Foreground(gloss.Color("6")).
 			Bold(true)
 
 		// Aliases to an input
-		aliasStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("4")).
+		aliasStyle = gloss.NewStyle().
+			Foreground(gloss.Color("4")).
 			Italic(true)
 
 		// Inputs that depend on a given input
-		depStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("2"))
+		depStyle = gloss.NewStyle().
+			Foreground(gloss.Color("2"))
 
 		// Summary at the end
-		summaryStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("3")).
+		summaryStyle = gloss.NewStyle().
+			Foreground(gloss.Color("3")).
 			Bold(true)
 	}
 
 	hasMultipleVersions := false
 	fmt.Println(titleStyle.Render("Dependency Analysis Report"))
 
-	for url, aliases := range deps {
-		if options.Merge {
-			if len(aliases) <= 1 {
-				continue
-			}
-			fmt.Println(inputStyle.Render(fmt.Sprintf("Input: %s", url)))
+	for repoIdentity, urls := range duplicateDeps {
+		hasMultipleVersions = true
 
-			// Only build the set when actually needed in merge mode
+		hasMultipleVersions = true
+		fmt.Println(inputStyle.Render(fmt.Sprintf("Repository: %s", repoIdentity)))
+
+		if options.Merge {
+			// Build dependants set
 			dependantsSet := make(map[string]struct{})
-			for _, alias := range aliases {
-				for _, dependant := range reverseDeps[alias] {
-					dependantsSet[dependant] = struct{}{}
+			for _, url := range urls {
+				if dependants, exists := urlToDependants[url]; exists {
+					for _, dependant := range dependants {
+						dependantsSet[dependant] = struct{}{}
+					}
 				}
 			}
 
@@ -344,29 +417,20 @@ func printPlainOutput(deps map[string][]string, reverseDeps map[string][]string,
 				fmt.Println(depStyle.Render(fmt.Sprintf("  Dependants: %s", strings.Join(dependants, ", "))))
 			}
 		} else {
-			if len(aliases) == 1 {
-				continue
-			}
-
-			fmt.Println(inputStyle.Render(fmt.Sprintf("Input: %s", url)))
-			for _, alias := range aliases {
-				fmt.Println(aliasStyle.Render(fmt.Sprintf("  Alias: %s", alias)))
-				fmt.Print(depStyle.Render("    Dependants: "))
-				dependants := reverseDeps[alias]
-				if len(dependants) > 0 {
-					fmt.Print(strings.Join(dependants, ", "))
+			for _, url := range urls {
+				fmt.Println(aliasStyle.Render(fmt.Sprintf("  Version: %s", url)))
+				if dependants, exists := urlToDependants[url]; exists && len(dependants) > 0 {
+					fmt.Println(depStyle.Render(fmt.Sprintf("    Dependants: %s", strings.Join(dependants, ", "))))
 				}
 				if options.Verbose {
-					fmt.Println(depStyle.Render(fmt.Sprintf("    [Debug] %d inputs depend on %s", len(dependants), alias)))
+					fmt.Println(depStyle.Render(fmt.Sprintf("    [Debug] %d inputs depend on this version", len(urlToDependants[url]))))
 				}
 				fmt.Println()
 			}
 		}
-
-		hasMultipleVersions = true
 	}
 
 	if !hasMultipleVersions {
-		fmt.Println(summaryStyle.Render("No duplicate inputs detected in the repositories analyzed."))
+		fmt.Println(summaryStyle.Render("No duplicate repositories detected in the lockfile."))
 	}
 }
