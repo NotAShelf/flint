@@ -10,7 +10,7 @@ in
     pname = "flint";
     inherit version;
 
-    src = fs.toSource {
+    src = lib.cleanSource (fs.toSource {
       root = ../.;
       fileset = fs.unions [
         ../cmd
@@ -20,7 +20,7 @@ in
         ../go.mod
         ../go.sum
       ];
-    };
+    });
 
     vendorHash = null;
 
