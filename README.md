@@ -1,4 +1,4 @@
-<!-- markdownlint-disable MD033 MD059 -->
+<!-- markdownlint-disable MD 013 MD033 MD059 -->
 
 <h1 id="header" align="center">
     <pre>Flint</pre>
@@ -14,11 +14,20 @@
 </div>
 
 <div align="center">
-  Flint (<i>flake input linter</i>) is a simple, fast, composable utility for
-  analyzing a `flake.lock` for duplicate inputs.
+  Flint (<strong>f</strong>lake input <strong>lint</strong>er) is a simple, fast and composable
+  utility for analyzing your <code>flake.lock</code> for duplicated inputs and check for updates.
 </div>
 
 ## Usage
+
+[@llakala]: https://github.com/llakala
+[fuiska]: https://github.com/llakala/menu/tree/main/packages/fuiska
+
+Flint provides a basic interface for linting your lockfile. The default
+behaviour is to review a `flake.lock` and identify duplicate transitive inputs,
+saving you the trouble of manually parsing the lockfile.
+
+<!-- markdownlint-disable MD013 -->
 
 ```bash
 Usage:
@@ -29,9 +38,10 @@ Examples:
   flint --lockfile=/path/to/flake.lock --output=json
   flint --lockfile=/path/to/flake.lock --output=plain
   flint --merge
-  flint --quiet
+  flint --check-updates
 
 Flags:
+  -u, --check-updates               check for available updates for flake inputs
       --fail-if-multiple-versions   exit with error if multiple versions found
   -h, --help                        help for flint
   -l, --lockfile string             path to flake.lock (default "flake.lock")
@@ -41,19 +51,31 @@ Flags:
   -v, --verbose                     enable verbose output
 ```
 
+<!-- markdownlint-enable MD013 -->
+
 Flint requires a **lockfile** to analyze. By default, Flint will look into the
 current directory for a `flake.lock`. If you wish to analyze another lockfile,
 you must provide one with `--lockfile` using an absolute path to your
 `flake.lock` that you want to analyze.
 
-The `--verbose` option will provide just a little additional information on each
-input. Flint, by design, is sufficiently verbose without this argument.
+The behaviour can be extended to provide further checks. Namely, the
+`--check-updates` command can be used to check whether your lockfile has any
+available updates. This is a direct port of [@llakala]'s [fuiska] (Flake Updates
+I Should Know About?) script.
 
-### `--fail-if-multiple-versions`
+Additionally, the `--merge` and `--output` flags can be used to modify the
+output format for further parsing. Flint respects the `NO_COLOR` variable, and
+all colored output can be easily suppressed by passing `NO_COLOR=1` to the
+program. The `--verbose` option will provide just a little additional
+information on each input. Flint, by design, is sufficiently verbose without
+this argument.
 
-You can tell Flint to _fail_ if there are duplicate inputs by passing
-`--fail-if-multiple-versions`. This is mostly useful for CI/CD purposes, or if
-you want to chain Flint into other utilities or scripts.
+> [!TIP]
+> You can tell Flint to _fail_ if there are duplicate inputs by passing
+> `--fail-if-multiple-versions`. This is mostly useful for CI/CD purposes, or if
+> you want to chain Flint into other utilities or scripts. In either case this
+> will cause the program to exit with exit code 1 when there are any duplicate
+> inputs.
 
 ### Output formats
 
@@ -75,10 +97,13 @@ For parsing the output programmatically, use `--output=json`.
 Flint is designed to integrate seamlessly with CI/CD pipelines. Use the
 `--fail-if-multiple-versions` flag to make your CI fail when duplicate
 dependencies are detected. GitHub Actions is provided as an example below. You
-may adapt the logic, i.e, the pipeline logic into any platform that supports
-installing Nix. You may, also _build with Go_ if necessary.
+may adapt the pipeline logic into any platform that supports installing Nix. You
+may, also _build with Go_ if necessary. Flint should work perfectly fine on any
+CI provider.
 
 ### GitHub Actions
+
+<!-- markdownlint-disable MD013 -->
 
 ```yaml
 name: Check Flake Dependencies
@@ -101,14 +126,22 @@ jobs:
           nix run github:NotAShelf/flint -- --fail-if-multiple-versions
 ```
 
+<!-- markdownlint-enable MD013 -->
+
 ### Pre-commit Hook
 
-This is a poor example, but it'll generally work. You may chance the `nix run`
-call in `entry` with just `flint <flags>` if you have it installed globally or
-in your dev shell. You may also use `git-hooks.nix` to evaluate the store path
-and use it directly.
+You may configure flint to run as a pre-commit hook to avoid committing your
+lockfile with duplicate inputs. The below example assumes you have Flint
+installed, and available in your `PATH`. In the case you are prepared for a
+performance penalty, you may use Nix to run flint from source, i.e., use
+`nix run` to invoke Flint.
 
-Add this to your `.pre-commit-config.yaml`:
+> [!TIP]
+> An alternative would be using something like `git-hooks.nix` to put Flint's
+> default pacakge into a hook. This would realise thet store path only when you
+> need to run your pre-commit hooks.
+
+To run Flint before commits, add this to your `.pre-commit-config.yaml`:
 
 ```yaml
 repos:
@@ -116,7 +149,7 @@ repos:
     hooks:
       - id: flint
         name: Check flake dependencies
-        entry: nix run github:NotAShelf/flint#flint -- --fail-if-multiple-versions
+        entry: flint --fail-if-multiple-versions
         language: system
         files: ^flake\.(nix|lock)$
         pass_filenames: false

@@ -60,6 +60,39 @@ func ShouldFailOnDuplicates(options Options, deps map[string][]string) bool {
 	return len(duplicateDeps) > 0
 }
 
+func PrintUpdates(results flake.UpdateResults, options Options) error {
+	// Validate output format first, even in quiet mode
+	if err := ValidateOutputFormat(options.OutputFormat); err != nil {
+		return err
+	}
+
+	if options.Quiet {
+		return nil
+	}
+
+	if options.OutputFormat == "json" {
+		jsonData, err := json.MarshalIndent(results, "", "  ")
+		if err != nil {
+			return fmt.Errorf("error marshaling JSON output: %w", err)
+		}
+
+		fmt.Println(string(jsonData))
+		return nil
+	}
+
+	// Choose output format
+	switch options.OutputFormat {
+	case "plain":
+		printPlainUpdateOutput(results, options)
+	case "pretty":
+		printFormattedUpdateOutput(results, options)
+	default:
+		// Default to pretty for backward compatibility
+		printFormattedUpdateOutput(results, options)
+	}
+	return nil
+}
+
 func PrintDependencies(deps map[string][]string, reverseDeps map[string][]string, options Options) error {
 	// Validate output format first, even in quiet mode
 	if err := ValidateOutputFormat(options.OutputFormat); err != nil {
@@ -432,5 +465,232 @@ func printPlainOutput(deps map[string][]string, urlToDependants map[string][]str
 
 	if !hasMultipleVersions {
 		fmt.Println(summaryStyle.Render("No duplicate repositories detected in the lockfile."))
+	}
+}
+
+func printFormattedUpdateOutput(results flake.UpdateResults, _ Options) {
+	// Styles for CI-friendly output
+	var (
+		headerStyle, successStyle, warningStyle, errorStyle, infoStyle,
+		dimStyle, boldStyle, urlStyle, inputStyle gloss.Style
+	)
+
+	// Status symbols
+	var successIcon, warningIcon, errorIcon, infoIcon string
+
+	if util.IsNoColor() {
+		// Plain text fallbacks for CI environments
+		emptyStyle := gloss.NewStyle()
+		headerStyle = emptyStyle
+		successStyle = emptyStyle
+		warningStyle = emptyStyle
+		errorStyle = emptyStyle
+		infoStyle = emptyStyle
+		dimStyle = emptyStyle
+		boldStyle = emptyStyle
+		urlStyle = emptyStyle
+		inputStyle = emptyStyle
+
+		// Unicode-safe symbols for CI
+		successIcon = "[✓]"
+		warningIcon = "[!]"
+		errorIcon = "[✗]"
+		infoIcon = "[i]"
+	} else {
+		// Rich colors and styles for interactive terminals
+		headerStyle = gloss.NewStyle().
+			Foreground(gloss.Color("12")).
+			Bold(true).
+			Underline(true)
+
+		successStyle = gloss.NewStyle().
+			Foreground(gloss.Color("10")).
+			Bold(true)
+
+		warningStyle = gloss.NewStyle().
+			Foreground(gloss.Color("11")).
+			Bold(true)
+
+		errorStyle = gloss.NewStyle().
+			Foreground(gloss.Color("9")).
+			Bold(true)
+
+		infoStyle = gloss.NewStyle().
+			Foreground(gloss.Color("14")).
+			Bold(true)
+
+		dimStyle = gloss.NewStyle().
+			Foreground(gloss.Color("8"))
+
+		boldStyle = gloss.NewStyle().
+			Bold(true)
+
+		urlStyle = gloss.NewStyle().
+			Foreground(gloss.Color("6")).
+			Underline(true)
+
+		inputStyle = gloss.NewStyle().
+			Foreground(gloss.Color("13")).
+			Italic(true)
+
+		// Rich symbols for interactive terminals
+		successIcon = "✓"
+		warningIcon = "⚠"
+		errorIcon = "✗"
+		infoIcon = "ℹ"
+	}
+
+	fmt.Println(headerStyle.Render("🔄 Flint - Update Check Report"))
+	fmt.Println()
+
+	// Count statistics
+	totalInputs := len(results.Updates)
+	availableUpdates := 0
+	errors := 0
+
+	for _, update := range results.Updates {
+		if update.IsUpdate {
+			availableUpdates++
+		}
+		if update.Error != "" {
+			errors++
+		}
+	}
+
+	if totalInputs == 0 {
+		fmt.Println(infoStyle.Render(fmt.Sprintf("%s No inputs found to check", infoIcon)))
+		return
+	}
+
+	fmt.Println(infoStyle.Render(fmt.Sprintf("%s Checked %d inputs for updates...", infoIcon, totalInputs)))
+
+	if availableUpdates == 0 && errors == 0 {
+		fmt.Println(successStyle.Render(fmt.Sprintf("%s All inputs are up to date!", successIcon)))
+		return
+	}
+
+	if availableUpdates > 0 {
+		fmt.Println(warningStyle.Render(fmt.Sprintf("%s %d updates available", warningIcon, availableUpdates)))
+	}
+	if errors > 0 {
+		fmt.Println(errorStyle.Render(fmt.Sprintf("%s %d errors encountered", errorIcon, errors)))
+	}
+	fmt.Println()
+
+	// Print detailed results
+	fmt.Println(boldStyle.Render("📋 Detailed Results:"))
+	fmt.Println()
+
+	for i, update := range results.Updates {
+		fmt.Printf("%d. %s\n", i+1, inputStyle.Render(update.InputName))
+
+		if update.Error != "" {
+			fmt.Printf("   %s %s\n", errorIcon, errorStyle.Render("Error: "+update.Error))
+		} else if update.IsUpdate {
+			fmt.Printf("   %s %s\n", warningIcon, warningStyle.Render("Update available"))
+			fmt.Printf("   %s %s\n", dimStyle.Render("├─"), boldStyle.Render("Current: ")+dimStyle.Render(update.CurrentRev[:8]+"..."))
+			fmt.Printf("   %s %s\n", dimStyle.Render("├─"), boldStyle.Render("Latest:  ")+successStyle.Render(update.LatestRev[:8]+"..."))
+			fmt.Printf("   %s %s\n", dimStyle.Render("└─"), urlStyle.Render(update.CurrentURL))
+		} else {
+			fmt.Printf("   %s %s\n", successIcon, successStyle.Render("Up to date"))
+			fmt.Printf("   %s %s\n", dimStyle.Render("└─"), dimStyle.Render(update.CurrentRev[:8]+"..."))
+		}
+		fmt.Println()
+	}
+
+	// Summary
+	fmt.Println(dimStyle.Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"))
+	fmt.Println(boldStyle.Render("📊 Summary:"))
+	fmt.Println()
+
+	if availableUpdates > 0 {
+		fmt.Println(warningStyle.Render(fmt.Sprintf("%s %d inputs have updates available", warningIcon, availableUpdates)))
+		fmt.Println(infoStyle.Render("Run 'nix flake update' to update all inputs, or update specific inputs:"))
+		fmt.Println(dimStyle.Render("  nix flake update <input-name>"))
+		fmt.Println()
+	}
+
+	if errors > 0 {
+		fmt.Println(errorStyle.Render(fmt.Sprintf("%s %d inputs could not be checked", errorIcon, errors)))
+		fmt.Println(infoStyle.Render("This may be due to network issues or unavailable repositories."))
+		fmt.Println()
+	}
+
+	if availableUpdates == 0 && errors == 0 {
+		fmt.Println(successStyle.Render(fmt.Sprintf("%s All inputs are at the latest version", successIcon)))
+	}
+}
+
+func printPlainUpdateOutput(results flake.UpdateResults, _ Options) {
+	// Simple styles for backward compatibility
+	var titleStyle, inputStyle, statusStyle, errorStyle gloss.Style
+
+	if util.IsNoColor() {
+		emptyStyle := gloss.NewStyle()
+		titleStyle = emptyStyle
+		inputStyle = emptyStyle
+		statusStyle = emptyStyle
+		errorStyle = emptyStyle
+	} else {
+		titleStyle = gloss.NewStyle().
+			Foreground(gloss.Color("5")).
+			Bold(true).
+			Underline(true)
+
+		inputStyle = gloss.NewStyle().
+			Foreground(gloss.Color("6")).
+			Bold(true)
+
+		statusStyle = gloss.NewStyle().
+			Foreground(gloss.Color("2"))
+
+		errorStyle = gloss.NewStyle().
+			Foreground(gloss.Color("9")).
+			Bold(true)
+	}
+
+	fmt.Println(titleStyle.Render("Update Check Report"))
+	fmt.Println()
+
+	availableUpdates := 0
+	errors := 0
+
+	for _, update := range results.Updates {
+		if update.IsUpdate {
+			availableUpdates++
+		}
+		if update.Error != "" {
+			errors++
+		}
+	}
+
+	if availableUpdates == 0 && errors == 0 {
+		fmt.Println(statusStyle.Render("All inputs are up to date."))
+		return
+	}
+
+	for _, update := range results.Updates {
+		fmt.Println(inputStyle.Render(fmt.Sprintf("Input: %s", update.InputName)))
+
+		if update.Error != "" {
+			fmt.Println(errorStyle.Render(fmt.Sprintf("  Error: %s", update.Error)))
+		} else if update.IsUpdate {
+			fmt.Println(statusStyle.Render("  Status: Update available"))
+			fmt.Printf("  Current: %s\n", update.CurrentRev[:8]+"...")
+			fmt.Printf("  Latest:  %s\n", update.LatestRev[:8]+"...")
+			fmt.Printf("  URL: %s\n", update.CurrentURL)
+		} else {
+			fmt.Println(statusStyle.Render("  Status: Up to date"))
+			fmt.Printf("  Version: %s\n", update.CurrentRev[:8]+"...")
+		}
+		fmt.Println()
+	}
+
+	// Summary
+	if availableUpdates > 0 {
+		fmt.Printf("%d inputs have updates available\n", availableUpdates)
+	}
+	if errors > 0 {
+		fmt.Printf("%d inputs could not be checked\n", errors)
 	}
 }
