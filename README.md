@@ -117,7 +117,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Nix
-        uses: cachix/install-nix-action@main # pin a versrion instead, this is an example
+        uses: cachix/install-nix-action@main # pin a version instead, this is an example
         with:
           nix_path: nixpkgs=channel:nixos-unstable
 
