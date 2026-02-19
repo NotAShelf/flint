@@ -4,6 +4,3 @@
 
 # Ignore build artifact
 /flint
-
-# Ignore dummy test data
-/test/
