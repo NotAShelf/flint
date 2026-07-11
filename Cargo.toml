@@ -1,0 +1,29 @@
+[package]
+name        = "flint"
+version     = "0.3.0"
+edition     = "2024"
+description = "Stupid simple utility for linting your flake inputs"
+homepage    = "https://github.com/notashelf/flint"
+license     = "MPL-2.0"
+
+[dependencies]
+serde = { version = "1.0.228", default-features = false, features = [
+  "derive",
+  "alloc",
+] }
+serde_json = { version = "1.0.150", default-features = false, features = [
+  "alloc",
+] }
+pound = "0.1.6"
+yansi = "1.0.1"
+git2 = { version = "0.21.0", default-features = false, features = ["https"] }
+attohttpc = { version = "0.31.0", default-features = false, features = [
+  "tls-native",
+] }
+
+[profile.release]
+opt-level     = 3
+lto           = "fat"
+codegen-units = 1
+panic         = "abort"
+strip         = true
