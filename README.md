@@ -7,15 +7,16 @@
 <div align="center">
     <a alt="CI" href="https://github.com/NotAShelf/flint/actions">
         <img
-          src="https://github.com/NotAShelf/flint/actions/workflows/go.yml/badge.svg"
+          src="https://github.com/NotAShelf/flint/actions/workflows/rust.yml/badge.svg"
           alt="Build Status"
         />
     </a>
 </div>
 
 <div align="center">
-  Flint (<strong>f</strong>lake input <strong>lint</strong>er) is a simple, fast and composable
-  utility for analyzing your <code>flake.lock</code> for duplicated inputs and check for updates.
+  Flint (<strong>f</strong>lake input <strong>lint</strong>er) is a simple,
+  fast and composable blutility for analyzing your <code>flake.lock</code>
+  for duplicated inputs and check for updates.
 </div>
 
 ## Usage
@@ -30,25 +31,20 @@ saving you the trouble of manually parsing the lockfile.
 <!-- markdownlint-disable MD013 -->
 
 ```bash
-Usage:
-  flint [flags]
+Analyze flake.lock for duplicate inputs and check updates.
 
-Examples:
-  flint --lockfile=/path/to/flake.lock --verbose
-  flint --lockfile=/path/to/flake.lock --output=json
-  flint --lockfile=/path/to/flake.lock --output=plain
-  flint --merge
-  flint --check-updates
+Usage: flint [OPTION]...
 
-Flags:
-  -u, --check-updates               check for available updates for flake inputs
-      --fail-if-multiple-versions   exit with error if multiple versions found
-  -h, --help                        help for flint
-  -l, --lockfile string             path to flake.lock (default "flake.lock")
-  -m, --merge                       merge all dependants into one list for each input
-  -o, --output string               output format: plain, pretty, or json (default "pretty")
-  -q, --quiet                       suppress all non-error output
-  -v, --verbose                     enable verbose output
+Options:
+  -l, --lockfile=LOCKFILE          Path to flake.lock.
+  -v, --verbose                    Enable verbose output.
+      --fail-if-multiple-versions  Exit with error if multiple versions found.
+  -o, --output=OUTPUT              Output format: plain, pretty, or json.
+  -m, --merge                      Merge all dependants into one list for each input.
+  -q, --quiet                      Suppress all non-error output.
+  -u, --check-updates              Check for available updates for flake inputs.
+      --version                    Print version information.
+  -h, --help                       display this help and exit
 ```
 
 <!-- markdownlint-enable MD013 -->
@@ -56,7 +52,8 @@ Flags:
 Flint requires a **lockfile** to analyze. By default, Flint will look into the
 current directory for a `flake.lock`. If you wish to analyze another lockfile,
 you must provide one with `--lockfile` using an absolute path to your
-`flake.lock` that you want to analyze.
+`flake.lock` that you want to analyze. In the case `--lockfile` points to a
+directory, Flint will check for a `flake.lock` in that directory.
 
 The behaviour can be extended to provide further checks. Namely, the
 `--check-updates` command can be used to check whether your lockfile has any
@@ -81,16 +78,16 @@ this argument.
 
 Flint supports three output formats:
 
-- **`pretty`** (default): Enhanced CI-friendly output with colors, symbols, and
-  structured information
+- **`pretty`** (default): Prettified, human-friendly output with colors,
+  symbols, and structured information
 - **`plain`**: Clean, minimal output suitable for scripting and legacy systems
-- **`json`**: Machine-readable JSON format for programmatic use
+- **`json`**: Machine-readable JSON format for programmatic use or/and CI
 
 The default output format is **pretty**, designed to be both human-readable and
-CI-friendly with clear visual hierarchy and actionable recommendations.
-
-For legacy compatibility or when you need minimal output, use `--output=plain`.
-For parsing the output programmatically, use `--output=json`.
+somewhat CI-friendly with clear visual hierarchy and actionable recommendations.
+For "legacy compatibility" (i.e., compatible with the _old_ default) or when you
+need minimal output, use `--output=plain`. For parsing the output
+programmatically e.g., via `jq` or `jaq,` use `--output=json`.
 
 ## CI/CD Integration
 
@@ -98,8 +95,8 @@ Flint is designed to integrate seamlessly with CI/CD pipelines. Use the
 `--fail-if-multiple-versions` flag to make your CI fail when duplicate
 dependencies are detected. GitHub Actions is provided as an example below. You
 may adapt the pipeline logic into any platform that supports installing Nix. You
-may, also _build with Go_ if necessary. Flint should work perfectly fine on any
-CI provider.
+may, also _build with Cargo_ (`cargo build --release`) if necessary. Flint
+should work perfectly fine on any CI provider.
 
 ### GitHub Actions
 
@@ -110,20 +107,18 @@ name: Check Flake Dependencies
 on: [push, pull_request]
 
 jobs:
-  check-dependencies:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    check-dependencies:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: cachix/install-nix-action@main # pin a version instead, this is an example
-        with:
-          nix_path: nixpkgs=channel:nixos-unstable
+            - name: Install Nix
+              uses: cachix/install-nix-action@main # pin a version instead, this is an example
 
-      - name: Check for duplicate dependencies
-        run: |
-          nix run github:NotAShelf/flint -- --fail-if-multiple-versions
+            - name: Check for duplicate dependencies
+              run: |
+                  nix run github:NotAShelf/flint -- --fail-if-multiple-versions
 ```
 
 <!-- markdownlint-enable MD013 -->
@@ -145,14 +140,14 @@ To run Flint before commits, add this to your `.pre-commit-config.yaml`:
 
 ```yaml
 repos:
-  - repo: local
-    hooks:
-      - id: flint
-        name: Check flake dependencies
-        entry: flint --fail-if-multiple-versions
-        language: system
-        files: ^flake\.(nix|lock)$
-        pass_filenames: false
+    - repo: local
+      hooks:
+          - id: flint
+            name: Check flake dependencies
+            entry: flint --fail-if-multiple-versions
+            language: system
+            files: ^flake\.(nix|lock)$
+            pass_filenames: false
 ```
 
 ### Exit Codes
@@ -315,8 +310,10 @@ No duplicate inputs detected in the repositories analyzed.
 ## Hacking
 
 Clone the repository and run `nix develop`. A `.envrc` is provided for Direnv
-users. Otherwise you will need Go installed. Flint does not have any build-time
-dependencies.
+users. Otherwise you will need a Rust toolchain (`cargo`, `rustc`) installed;
+build with `cargo build --release`. Flint links against the system `libgit2`, so
+`pkg-config`, `libgit2`, and `openssl` must be available at build time (the
+`nix develop` shell provides these for you).
 
 ## License
 
