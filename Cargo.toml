@@ -1,6 +1,6 @@
 [package]
 name        = "flint"
-version     = "0.3.0"
+version     = "1.0.0"
 edition     = "2024"
 description = "Stupid simple utility for linting your flake inputs"
 homepage    = "https://github.com/notashelf/flint"
