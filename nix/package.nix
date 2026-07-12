@@ -1,9 +1,13 @@
 {
   lib,
-  buildGoModule,
+  rustPlatform,
+  pkg-config,
+  libgit2,
+  openssl,
+  zlib,
   ...
 }:
-buildGoModule (finalAttrs: {
+rustPlatform.buildRustPackage (finalAttrs: {
   pname = "flint";
   version = "0.3.0";
 
@@ -14,17 +18,19 @@ buildGoModule (finalAttrs: {
     fs.toSource {
       root = s;
       fileset = fs.unions [
-        ../cmd
-        ../internal
-        ../vendor
-        ../main.go
-        ../go.mod
-        ../go.sum
+        ../Cargo.toml
+        ../Cargo.lock
+        ../src
       ];
     };
 
-  vendorHash = null;
-  ldflags = ["-s" "-w" "-X main.version=${finalAttrs.version}"];
+  cargoLock.lockFile = ../Cargo.lock;
+
+  nativeBuildInputs = [pkg-config];
+  buildInputs = [libgit2 openssl zlib];
+
+  # Link against the system libgit2 rather than building the vendored copy.
+  env.LIBGIT2_NO_VENDOR = "1";
 
   meta = {
     description = "Stupid simple utility for linting your flake inputs";
