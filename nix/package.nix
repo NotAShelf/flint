@@ -7,9 +7,9 @@
   zlib,
   ...
 }: let
-  cargoTOML = lib.importTOML ../Cargo.toml;
+  cargoTOML = (lib.importTOML ../Cargo.toml).package;
 in
-  rustPlatform.buildRustPackage {
+  rustPlatform.buildRustPackage (finalAttrs: {
     pname = "flint";
     version = cargoTOML.version;
 
@@ -26,7 +26,7 @@ in
         ];
       };
 
-    cargoLock.lockFile = ../Cargo.lock;
+    cargoLock.lockFile = "${finalAttrs.src}/Cargo.lock";
 
     nativeBuildInputs = [pkg-config];
     buildInputs = [libgit2 openssl zlib];
@@ -41,4 +41,4 @@ in
       mainProgram = "flint";
       maintainers = [lib.maintainers.NotAShelf];
     };
-  }
+  })
