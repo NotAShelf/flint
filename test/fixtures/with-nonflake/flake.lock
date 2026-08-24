@@ -1,0 +1,44 @@
+{
+  "nodes": {
+    "direnv-nvim": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1782680771,
+        "narHash": "sha256-b5PpmkYWaDGLNcu+36tRR5ycATHYBjs9WrV8/jfmooQ=",
+        "ref": "refs/heads/main",
+        "rev": "9258f9f10c4c729d8296fce0e3ecb12543daad06",
+        "revCount": 50,
+        "type": "git",
+        "url": "https://github.com/notashelf/direnv.nvim"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://github.com/notashelf/direnv.nvim"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1783776592,
+        "narHash": "sha256-UgCQzxeWI75XM8G+hPrPh+MKzEPjG3SpAj7dtqSbksA=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "e7a3ca8092b61ff85b6a45bf863ea2b2d6a661b3",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "direnv-nvim": "direnv-nvim",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

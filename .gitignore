@@ -2,5 +2,5 @@
 /.direnv/
 /result*
 
-# Ignore build artifact
-/flint
+# Rust build artifacts
+/target
